@@ -73,17 +73,6 @@ export default function PropertiesPanel() {
         </div>
 
         {/* Dynamic fields based on type */}
-        {widget.type === 'KeyValueCard' && (
-          <div className="space-y-2">
-            <Label>Unit symbol</Label>
-            <Input 
-              placeholder="e.g. °C, %" 
-              value={draftConfig.unit || ''}
-              onChange={(e) => handleConfigChange({ unit: e.target.value })}
-            />
-          </div>
-        )}
-
         {widget.type === 'GaugeWidget' && (
           <>
             <div className="space-y-2">
@@ -113,37 +102,6 @@ export default function PropertiesPanel() {
               />
             </div>
           </>
-        )}
-
-        {widget.type === 'StatusIndicator' && (
-           <>
-              <div className="space-y-2">
-                <Label>Operator</Label>
-                <Select 
-                   value={draftConfig.operator || '>'} 
-                   onValueChange={(val) => handleConfigChange({ operator: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select operator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value=">">Greater than</SelectItem>
-                    <SelectItem value="<">Less than</SelectItem>
-                    <SelectItem value="==">Equals to</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Threshold Value</Label>
-                <Input 
-                  type="number"
-                  placeholder="e.g. 50" 
-                  value={draftConfig.threshold || ''}
-                  onChange={(e) => handleConfigChange({ threshold: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">Green when condition matches, Red otherwise</p>
-              </div>
-           </>
         )}
 
         {widget.type === 'HistoricalTrendWidget' && (

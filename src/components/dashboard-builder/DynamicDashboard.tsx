@@ -38,14 +38,12 @@ function SectionView({
   widgets,
   nodeId,
   pollIntervalMs,
-  onAction,
 }: {
   section: Section;
   sectionLayout: Layout[];
   widgets: Record<string, WidgetConfig>;
   nodeId: string;
   pollIntervalMs: number;
-  onAction?: (key: string, value: any) => void;
 }) {
   const { ref, width } = useMeasure();
 
@@ -101,11 +99,9 @@ function SectionView({
             return (
               <div key={item.i} className="flex flex-col h-full w-full">
                 <WidgetRenderer
-                  widgetId={item.i}
                   config={widgetConfig}
                   nodeId={nodeId}
                   pollIntervalMs={pollIntervalMs}
-                  onAction={onAction}
                   isEditMode={false}
                 />
               </div>
@@ -122,10 +118,9 @@ interface DynamicDashboardProps {
   schema: any;
   nodeId: string;
   pollIntervalMs?: number;
-  onAction?: (key: string, value: any) => void;
 }
 
-export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0, onAction }: DynamicDashboardProps) {
+export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0 }: DynamicDashboardProps) {
   if (!schema || !schema.layout || !schema.widgets || !Array.isArray(schema.layout)) {
     return (
       <div className="flex items-center justify-center h-64 bg-slate-50 border rounded-lg text-slate-400">
@@ -160,7 +155,6 @@ export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0, onAction 
             widgets={widgets}
             nodeId={nodeId}
             pollIntervalMs={pollIntervalMs}
-            onAction={onAction}
           />
         );
       })}

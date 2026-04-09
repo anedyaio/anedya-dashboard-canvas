@@ -9,11 +9,11 @@
 
 # Anedya Dashboard Canvas
 
-A starter project for building secure, multi-device IoT dashboards with Anedya telemetry and Supabase backend services.
+Turn raw IoT telemetry into a polished dashboard experience in minutes.
 
-It is designed for teams who want to launch an IoT dashboard quickly with authentication, device management, and configurable dashboard widgets already in place.
+Anedya Dashboard Canvas helps teams launch multi-device monitoring dashboards with real-time insights, historical analysis, and remote control workflows out of the box.
 
-![Screenshot](screenshot.png) _(Note: Replace with your actual screenshot later)_
+<!-- ![Screenshot](screenshot.png) _(Note: Replace with your actual screenshot later)_ -->
 
 ## ✨ Features
 

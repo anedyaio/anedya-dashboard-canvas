@@ -86,7 +86,7 @@ export function DeviceBannerPreview() {
             <div>
               <span className="font-medium text-muted-foreground flex items-center gap-2 mb-1">
                 <Signal className="h-4 w-4" />
-                Signal Strength
+                Network Strength
               </span>
               <span className="block pl-6 font-medium text-green-600">
                 Excellent <span className="text-xs text-muted-foreground">(23)</span>

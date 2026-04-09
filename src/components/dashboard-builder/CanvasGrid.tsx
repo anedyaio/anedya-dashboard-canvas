@@ -226,7 +226,6 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
 
                 <div className="w-full h-full p-1 pointer-events-none">
                   <WidgetRenderer
-                    widgetId={item.i}
                     config={widgets[item.i]}
                     isEditMode={true}
                   />

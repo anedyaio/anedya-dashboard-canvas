@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Bell, Settings, Sun, Moon } from 'lucide-react';
+import { Menu, Settings, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, mode, setMode } = useTheme();
+  const { theme, mode, setMode } = useTheme();
 
   const toggleTheme = () => {
     // Only toggle mode if in modern theme (as per request)
