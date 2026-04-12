@@ -26,7 +26,12 @@ const UserManagement = () => {
   const updateUserRole = useUpdateUserRole();
   const bulkAssign = useBulkAssignDevices();
   const bulkUnassign = useBulkUnassignDevices();
+  const removeUser = useDeleteUser();
 
+  // User Filtering State
+  const [userSearch, setUserSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<'all' | 'viewer' | 'editor'>('all');
+  
   // New User Form State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +41,12 @@ const UserManagement = () => {
   const [deviceSearch, setDeviceSearch] = useState("");
 
   const isBulkOperating = bulkAssign.isPending || bulkUnassign.isPending;
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.email.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   const filteredDevices = allDevices.filter(d => 
     d.title.toLowerCase().includes(deviceSearch.toLowerCase()) || 
@@ -170,9 +181,35 @@ const UserManagement = () => {
           {/* ── Users List & Access Control ── */}
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                User Directory & Access
+              <CardTitle className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  User Directory & Access
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input 
+                      placeholder="Search users..." 
+                      className="h-8 pl-8 text-xs w-[150px] lg:w-[200px]" 
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                    />
+                  </div>
+                  <Select 
+                    value={roleFilter} 
+                    onValueChange={(val: 'all' | 'viewer' | 'editor') => setRoleFilter(val)}
+                  >
+                    <SelectTrigger className="h-8 w-[110px] text-xs">
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                      <SelectItem value="editor">Editor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardTitle>
               <CardDescription>
                 Assign specific devices to allow non-admin users to view them.
@@ -183,13 +220,17 @@ const UserManagement = () => {
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <div className="text-center p-8 border rounded-lg bg-muted/20">
-                  <p className="text-muted-foreground">No users found.</p>
+                  <p className="text-muted-foreground">
+                    {userSearch || roleFilter !== 'all' 
+                      ? "No users found matching the criteria." 
+                      : "No users found."}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <div key={user.id} className="border rounded-lg p-4 bg-card shadow-sm">
                       <div className="flex items-start justify-between mb-4">
                         <div>
