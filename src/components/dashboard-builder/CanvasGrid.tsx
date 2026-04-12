@@ -247,7 +247,44 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
 
 // ─── Main Canvas ─────────────────────────────
 export default function CanvasGrid() {
-  const { sections, addSection, setSelectedWidget, setSelectedSection } = useBuilderStore();
+  const { sections, addSection, setSelectedWidget, setSelectedSection, selectedWidgetId, selectedSectionId, copyWidget, pasteWidget, removeWidget, duplicateWidget } = useBuilderStore();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Use Ctrl/Cmd for shortcuts
+      const isMod = e.ctrlKey || e.metaKey;
+
+      if (isMod && e.key === 'c') {
+        if (selectedWidgetId) {
+          e.preventDefault();
+          copyWidget(selectedWidgetId);
+        }
+      } else if (isMod && e.key === 'v') {
+        const sectionId = selectedSectionId || sections[0]?.id;
+        if (sectionId) {
+          e.preventDefault();
+          pasteWidget(sectionId);
+        }
+      } else if (isMod && e.key === 'd') {
+        const sectionId = selectedSectionId || sections[0]?.id;
+        if (selectedWidgetId && sectionId) {
+          e.preventDefault();
+          duplicateWidget(selectedWidgetId, sectionId);
+        }
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Avoid deleting when input is focused
+        if ((document.activeElement as HTMLElement)?.tagName === 'INPUT') return;
+
+        if (selectedWidgetId) {
+          e.preventDefault();
+          removeWidget(selectedWidgetId);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedWidgetId, selectedSectionId, sections, copyWidget, pasteWidget, removeWidget, duplicateWidget]);
 
   const sortedSections = [...sections].sort((a, b) => a.order - b.order);
 

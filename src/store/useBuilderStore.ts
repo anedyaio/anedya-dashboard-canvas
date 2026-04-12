@@ -37,6 +37,7 @@ export interface BuilderState {
   selectedWidgetId: string | null;
   selectedSectionId: string | null;
   draggedWidgetType: string | null;
+  copiedWidget: { layout: Layout; config: WidgetConfig } | null;
 
   // Section actions
   addSection: (title?: string) => string;
@@ -51,6 +52,9 @@ export interface BuilderState {
   updateWidgetTitle: (id: string, title: string) => void;
   removeWidget: (id: string) => void;
   updateLayout: (newLayout: Layout[], sectionId: string) => void;
+  copyWidget: (id: string) => void;
+  pasteWidget: (sectionId: string) => void;
+  duplicateWidget: (id: string, sectionId: string) => void;
 
   // Selection
   setSelectedWidget: (id: string | null) => void;
@@ -73,6 +77,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   selectedWidgetId: null,
   selectedSectionId: null,
   draggedWidgetType: null,
+  copiedWidget: null,
 
   addSection: (title?: string) => {
     const id = `section-${Date.now()}`;
@@ -166,6 +171,66 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
       layout: state.layout.filter((l) => l.i !== id),
       widgets: newWidgets,
       selectedWidgetId: state.selectedWidgetId === id ? null : state.selectedWidgetId
+    };
+  }),
+
+  copyWidget: (id) => set((state) => {
+    const layoutItem = state.layout.find(l => l.i === id);
+    const config = state.widgets[id];
+    if (!layoutItem || !config) return state;
+
+    return {
+      copiedWidget: { layout: layoutItem, config }
+    };
+  }),
+
+  pasteWidget: (sectionId) => set((state) => {
+    const { copiedWidget } = state;
+    if (!copiedWidget) return state;
+
+    const uniqueId = `widget-${Date.now()}`;
+    const { layout: sourceLayout, config: sourceConfig } = copiedWidget;
+
+    // Offset pasted widget slightly to avoid complete overlap
+    const newLayoutItem: Layout = {
+      ...sourceLayout,
+      i: uniqueId,
+      sectionId,
+      x: sourceLayout.x + 1,
+      y: sourceLayout.y + 1,
+    };
+
+    return {
+      layout: [...state.layout, newLayoutItem],
+      widgets: {
+        ...state.widgets,
+        [uniqueId]: { ...sourceConfig, title: `${sourceConfig.title} (Copy)` }
+      },
+      selectedWidgetId: uniqueId,
+    };
+  }),
+
+  duplicateWidget: (id, sectionId) => set((state) => {
+    const layoutItem = state.layout.find(l => l.i === id);
+    const config = state.widgets[id];
+    if (!layoutItem || !config) return state;
+
+    const uniqueId = `widget-${Date.now()}`;
+    const newLayoutItem: Layout = {
+      ...layoutItem,
+      i: uniqueId,
+      sectionId,
+      x: layoutItem.x + 1,
+      y: layoutItem.y + 1,
+    };
+
+    return {
+      layout: [...state.layout, newLayoutItem],
+      widgets: {
+        ...state.widgets,
+        [uniqueId]: { ...config, title: `${config.title} (Copy)` }
+      },
+      selectedWidgetId: uniqueId,
     };
   }),
 
