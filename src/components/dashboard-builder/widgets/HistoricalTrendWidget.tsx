@@ -95,7 +95,7 @@ export function HistoricalTrendWidget({
           }),
           [deviceKey]: +(Number(p.value).toFixed(1)),
           timestamp: p.timestamp,
-        }));
+        })).reverse();
         setData(series);
       } else {
         setData([]);
