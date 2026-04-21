@@ -28,8 +28,8 @@ export default function ComponentSidebar() {
   };
 
   return (
-    <div className="w-64 border-r bg-gray-50 flex flex-col h-full">
-      <div className="p-4 border-b font-medium bg-white">
+    <div className="w-64 border-r bg-card flex flex-col h-full">
+      <div className="p-4 border-b font-medium bg-background">
         Component Library
       </div>
       <div className="p-4 flex-1 overflow-y-auto space-y-3">
@@ -48,9 +48,9 @@ export default function ComponentSidebar() {
               onDragEnd={onDragEnd}
               className="cursor-move"
             >
-              <Card className="hover:border-primary hover:shadow-sm transition-all bg-white border-dashed">
+              <Card className="hover:border-primary hover:shadow-sm transition-all bg-card border-dashed">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded text-gray-500">
+                  <div className="p-2 bg-muted rounded text-muted-foreground">
                     {widget.icon}
                   </div>
                   <span className="text-sm font-medium">{widget.name}</span>

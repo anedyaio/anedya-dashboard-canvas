@@ -64,12 +64,12 @@ function SectionView({
   });
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-8">
+    <div className="bg-card rounded-lg border border-border shadow-sm mb-8">
       {/* Section Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-lg">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 rounded-t-lg">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Activity className="w-5 h-5 text-[#0066cc] shrink-0" />
-          <h3 className="text-[20px] font-semibold text-[#002b49] truncate">{section.title}</h3>
+          <Activity className="w-5 h-5 text-primary shrink-0" />
+          <h3 className="text-[20px] font-semibold text-foreground truncate">{section.title}</h3>
         </div>
       </div>
 
@@ -90,7 +90,7 @@ function SectionView({
             const widgetConfig = widgets[item.i];
             if (!widgetConfig) {
               return (
-                <div key={item.i} className="bg-white border rounded p-4 text-sm text-red-400 border-red-200">
+                <div key={item.i} className="bg-card border border-red-200 rounded p-4 text-sm text-red-400">
                   Widget {item.i} not found
                 </div>
               );
@@ -123,7 +123,7 @@ interface DynamicDashboardProps {
 export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0 }: DynamicDashboardProps) {
   if (!schema || !schema.layout || !schema.widgets || !Array.isArray(schema.layout)) {
     return (
-      <div className="flex items-center justify-center h-64 bg-slate-50 border rounded-lg text-slate-400">
+      <div className="flex items-center justify-center h-64 bg-muted/30 border border-border rounded-lg text-muted-foreground">
         No valid dashboard configuration found.
       </div>
     );

@@ -47,7 +47,7 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
   const { config, nodeId, pollIntervalMs, isEditMode } = props;
 
   if (!config) {
-    return <div className="p-4 opacity-50 bg-gray-100 rounded">Invalid Widget</div>;
+    return <div className="p-4 opacity-50 bg-muted rounded text-muted-foreground">Invalid Widget</div>;
   }
 
   switch (config.type) {
@@ -107,7 +107,7 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
       );
     default:
       return (
-        <Card className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400">
+        <Card className="w-full h-full flex items-center justify-center bg-muted/30 text-muted-foreground">
           Unknown Widget: {config.type}
         </Card>
       );

@@ -90,20 +90,20 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
 
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 shadow-sm mb-8"
+      className="bg-card rounded-lg border border-border shadow-sm mb-8"
       onClick={(e) => {
         e.stopPropagation();
         setSelectedSection(section.id);
       }}
     >
       {/* ── Section Header ── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-lg">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 rounded-t-lg">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Activity className="w-5 h-5 text-[#0066cc] shrink-0" />
+          <Activity className="w-5 h-5 text-primary shrink-0" />
           {isEditingTitle ? (
             <input
               autoFocus
-              className="text-[20px] font-semibold text-[#002b49] bg-transparent border-b-2 border-primary outline-none flex-1 min-w-0"
+              className="text-[20px] font-semibold text-foreground bg-transparent border-b-2 border-primary outline-none flex-1 min-w-0"
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               onBlur={handleTitleSave}
@@ -111,7 +111,7 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
             />
           ) : (
             <h3
-              className="text-[20px] font-semibold text-[#002b49] truncate cursor-pointer hover:text-primary transition-colors"
+              className="text-[20px] font-semibold text-foreground truncate cursor-pointer hover:text-primary transition-colors"
               onDoubleClick={() => {
                 setTitleDraft(section.title);
                 setIsEditingTitle(true);
@@ -236,7 +236,7 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
         </ReactGridLayout>
 
         {sectionLayout.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-sm">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-muted-foreground text-sm">
             Drag widgets here
           </div>
         )}
@@ -293,7 +293,7 @@ export default function CanvasGrid({ onSave }: { onSave?: () => void }) {
 
   return (
     <div
-      className="flex-1 bg-gray-100 overflow-y-auto h-full p-4"
+      className="flex-1 bg-background overflow-y-auto h-full p-4"
       onClick={() => { setSelectedWidget(null); }}
     >
       <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -313,7 +313,7 @@ export default function CanvasGrid({ onSave }: { onSave?: () => void }) {
             e.stopPropagation();
             addSection();
           }}
-          className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+          className="w-full py-4 border-2 border-dashed border-border rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 text-sm font-medium"
         >
           <Plus size={16} />
           Add Section

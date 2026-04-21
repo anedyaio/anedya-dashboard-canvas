@@ -63,10 +63,10 @@ export default function BuilderLayout({ onSave }: { onSave: (templateData: any) 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] w-full border rounded-xl overflow-hidden shadow-sm bg-white">
+    <div className="flex flex-col h-[calc(100vh-100px)] w-full border rounded-xl overflow-hidden shadow-sm bg-background">
       {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
-         <h2 className="text-sm font-semibold text-gray-700">Dashboard Layout Builder</h2>
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b">
+         <h2 className="text-sm font-semibold text-foreground">Dashboard Layout Builder</h2>
          <div className="flex items-center gap-2">
             <input
               type="file"

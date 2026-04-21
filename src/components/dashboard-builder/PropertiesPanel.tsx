@@ -25,7 +25,7 @@ export default function PropertiesPanel() {
 
   if (!selectedWidgetId || !widget) {
     return (
-      <div className="w-72 border-l bg-gray-50 p-4 text-center text-sm text-gray-500 h-full flex items-center justify-center">
+      <div className="w-72 border-l bg-card p-4 text-center text-sm text-muted-foreground h-full flex items-center justify-center">
         Select a component to edit its properties
       </div>
     );
@@ -43,14 +43,14 @@ export default function PropertiesPanel() {
   };
 
   return (
-    <div className="w-72 border-l bg-white flex flex-col h-full">
-      <div className="p-4 border-b font-medium bg-gray-50">
+    <div className="w-72 border-l bg-card flex flex-col h-full">
+      <div className="p-4 border-b font-medium bg-background">
         Properties
       </div>
       <div className="p-4 flex-1 overflow-y-auto space-y-6">
         <div className="space-y-2">
           <Label>Widget Type</Label>
-          <div className="text-sm px-3 py-2 bg-gray-100 rounded text-gray-600 font-mono">
+          <div className="text-sm px-3 py-2 bg-muted rounded text-muted-foreground font-mono">
             {widget.type}
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function PropertiesPanel() {
                 <input
                   type="checkbox"
                   id="showLatest"
-                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
                   checked={draftConfig.showLatest !== false}
                   onChange={(e) => handleConfigChange({ showLatest: e.target.checked })}
                 />
@@ -140,7 +140,7 @@ export default function PropertiesPanel() {
                 <input
                   type="checkbox"
                   id="showMin"
-                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
                   checked={draftConfig.showMin !== false}
                   onChange={(e) => handleConfigChange({ showMin: e.target.checked })}
                 />
@@ -150,7 +150,7 @@ export default function PropertiesPanel() {
                 <input
                   type="checkbox"
                   id="showAvg"
-                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
                   checked={draftConfig.showAvg !== false}
                   onChange={(e) => handleConfigChange({ showAvg: e.target.checked })}
                 />
@@ -160,7 +160,7 @@ export default function PropertiesPanel() {
                 <input
                   type="checkbox"
                   id="showMax"
-                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
                   checked={draftConfig.showMax !== false}
                   onChange={(e) => handleConfigChange({ showMax: e.target.checked })}
                 />
@@ -232,7 +232,7 @@ export default function PropertiesPanel() {
               </p>
 
               {(draftConfig.valueMappings as ValueMapping[] || []).map((mapping: ValueMapping, idx: number) => (
-                <div key={mapping.id} className="border rounded-lg p-3 space-y-2 bg-gray-50 relative">
+                <div key={mapping.id} className="border rounded-lg p-3 space-y-2 bg-muted/30 relative">
                   <Button
                     type="button"
                     variant="ghost"
@@ -412,7 +412,7 @@ export default function PropertiesPanel() {
               {series.map((s, idx) => (
                 <div
                   key={s.id}
-                  className="border rounded-lg p-3 space-y-2.5 bg-gray-50 relative"
+                  className="border rounded-lg p-3 space-y-2.5 bg-muted/30 relative"
                   style={{ borderLeft: `3px solid ${s.color}` }}
                 >
                   {/* Series header row */}

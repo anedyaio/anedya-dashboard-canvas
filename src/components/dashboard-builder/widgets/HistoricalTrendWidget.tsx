@@ -207,7 +207,7 @@ export function HistoricalTrendWidget({
 
   return (
     <Card className="w-full h-full flex flex-col hover:border-primary transition-colors cursor-default overflow-hidden">
-      <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-white z-10 relative">
+      <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-card z-10 relative">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2 min-w-[50px] shrink-0">
             <Activity className="h-4 w-4 text-primary shrink-0" />
@@ -241,7 +241,7 @@ export function HistoricalTrendWidget({
       </CardHeader>
       <CardContent className="p-0 flex-1 relative min-h-[150px]">
         {isEditMode ? (
-          <div className="absolute inset-4 flex items-center justify-center bg-gray-50 text-gray-400 text-sm rounded outline-dashed outline-2 outline-gray-200">
+          <div className="absolute inset-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border">
             Historical Trend Preview
           </div>
         ) : isLoading && data.length === 0 ? (
@@ -258,7 +258,7 @@ export function HistoricalTrendWidget({
               <div className="absolute top-2 right-4 z-10 flex flex-col items-end text-right p-1.5 rounded pointer-events-none">
                 {/* <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider leading-none">Latest Value</span> */}
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xl font-bold text-slate-800 leading-none">{stats.last}</span>
+                  <span className="text-xl font-bold text-foreground leading-none">{stats.last}</span>
                   {unit && <span className="text-xs font-semibold text-muted-foreground">{unit}</span>}
                 </div>
                 <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{stats.lastTime}</span>
@@ -323,25 +323,25 @@ export function HistoricalTrendWidget({
         )}
       </CardContent>
       {stats && showFooter && (
-        <div className="mt-auto pt-2 pb-2 px-4 border-t border-slate-100 flex justify-between items-center text-xs shrink-0 z-10 bg-white gap-4 w-full">
+        <div className="mt-auto pt-2 pb-2 px-4 border-t border-border flex justify-between items-center text-xs shrink-0 z-10 bg-card gap-4 w-full">
           {showMin && (
             <div className={`flex flex-col truncate flex-1 ${(!showAvg && !showMax) ? 'items-center text-center' : 'items-start text-left'}`}>
               <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Min</span>
-              <span className="font-medium text-slate-700 truncate w-full">{stats.min}{unit ? ` ${unit}` : ''} | {stats.minTime}</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.min}{unit ? ` ${unit}` : ''} | {stats.minTime}</span>
             </div>
           )}
           
           {showAvg && (
             <div className="flex flex-col items-center text-center truncate flex-1">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Avg</span>
-              <span className="font-medium text-slate-700 truncate w-full">{stats.avg}{unit ? ` ${unit}` : ''}</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.avg}{unit ? ` ${unit}` : ''}</span>
             </div>
           )}
 
           {showMax && (
             <div className={`flex flex-col truncate flex-1 ${(!showAvg && !showMin) ? 'items-center text-center' : 'items-end text-right'}`}>
               <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Max</span>
-              <span className="font-medium text-slate-700 truncate w-full">{stats.max}{unit ? ` ${unit}` : ''} | {stats.maxTime}</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.max}{unit ? ` ${unit}` : ''} | {stats.maxTime}</span>
             </div>
           )}
         </div>

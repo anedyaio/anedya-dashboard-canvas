@@ -18,7 +18,7 @@ export default function GaugeWidget({ value, timestamp, title, config }: GaugeWi
   const displayTitle = title || config.title || 'Gauge';
   
   return (
-    <div className="w-full h-full flex flex-col p-4 bg-white">
+    <div className="w-full h-full flex flex-col p-4 bg-card text-card-foreground rounded-lg">
       <div className="font-medium text-sm mb-2">{displayTitle}</div>
       <div className="flex-1 w-full h-full min-h-0 relative flex items-center justify-center">
         <div className="w-full h-full absolute inset-0 flex items-center justify-center">
