@@ -222,7 +222,7 @@ const Home: React.FC<HomeProps> = ({
           <Card className="overflow-hidden border-none shadow-md">
             <div className="h-48 w-full relative group">
               <img
-                src="/cold-room-banner.jpeg"
+                src="/iot-banner.jpg"
                 alt="Cold Room Facility"
                 className="w-full h-full object-cover transition-transform duration-500 "
               />
