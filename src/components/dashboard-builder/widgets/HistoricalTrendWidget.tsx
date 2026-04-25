@@ -42,7 +42,7 @@ export function HistoricalTrendWidget({
   const deviceKey = config.config.deviceKey;
   const strokeColor = config.config.strokeColor || "hsl(var(--primary))";
   const unit = config.config.unit;
-  
+
   const showLatest = config.config.showLatest !== false;
   const showMin = config.config.showMin !== false;
   const showAvg = config.config.showAvg !== false;
@@ -113,7 +113,7 @@ export function HistoricalTrendWidget({
         const series = [];
         for (let i = 0; i < rawSeries.length; i++) {
           const point = { ...rawSeries[i] };
-          
+
           let isGapStart = false;
           let isGapEnd = false;
 
@@ -129,7 +129,9 @@ export function HistoricalTrendWidget({
           }
 
           if (isGapStart || isGapEnd) {
-             point[`${deviceKey}_gap`] = point[deviceKey];
+            point[`${deviceKey}_gap`] = point[deviceKey];
+          } else {
+            point[`${deviceKey}_gap`] = null;
           }
 
           series.push(point);
@@ -139,7 +141,7 @@ export function HistoricalTrendWidget({
             const nextTs = rawSeries[i + 1].timestamp;
             const currentVal = point[deviceKey];
             const nextVal = rawSeries[i + 1][deviceKey];
-          
+
             series.push({
               time: new Date((currentTs + (nextTs - currentTs) / 2) * 1000).toLocaleString(undefined, {
                 year: "numeric",
@@ -205,7 +207,7 @@ export function HistoricalTrendWidget({
 
     let lastValue = undefined;
     let lastTime = "";
-    
+
     for (let i = data.length - 1; i >= 0; i--) {
       if (data[i][deviceKey] !== null && data[i][deviceKey] !== undefined) {
         lastValue = data[i][deviceKey];
@@ -315,18 +317,18 @@ export function HistoricalTrendWidget({
             No data available
           </div>
         ) : (
-          <>
-            {stats && showLatest && (
-              <div className="absolute top-2 right-4 z-10 flex flex-col items-end text-right p-1.5 rounded pointer-events-none">
-                {/* <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider leading-none">Latest Value</span> */}
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xl font-bold text-foreground leading-none">{stats.last}</span>
-                  {unit && <span className="text-xs font-semibold text-muted-foreground">{unit}</span>}
+          <div className={`absolute inset-4 flex ${config.config.showTable ? "gap-4" : ""}`}>
+            <div className={`relative ${config.config.showTable ? "basis-[60%] overflow-hidden" : "w-full overflow-hidden"}`} style={{ height: "100%" }}>
+              {stats && showLatest && (
+                <div className="absolute top-0 right-1 z-10 flex flex-col items-end text-right p-1.5 rounded pointer-events-none">
+                  {/* <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider leading-none">Latest Value</span> */}
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-xl font-bold text-foreground leading-none">{stats.last}</span>
+                    {unit && <span className="text-xs font-semibold text-muted-foreground">{unit}</span>}
+                  </div>
+                  <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{stats.lastTime}</span>
                 </div>
-                <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{stats.lastTime}</span>
-              </div>
-            )}
-            <div className="absolute inset-4">
+              )}
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={data}>
                   <defs>
@@ -416,7 +418,31 @@ export function HistoricalTrendWidget({
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-          </>
+
+            {config.config.showTable && (
+              <div className="basis-[40%] flex flex-col h-full border rounded bg-card overflow-hidden">
+                <div className="bg-muted/50 px-3 py-1.5 border-b text-xs font-semibold flex justify-between">
+                  <span>Time</span>
+                  <span>{config.title} {unit ? `(${unit})` : ''}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <tbody className="divide-y divide-border">
+                      {data
+                        .filter((d) => d[deviceKey] !== null && d[deviceKey] !== undefined)
+                        .reverse()
+                        .map((row, idx) => (
+                          <tr key={`${row.timestamp}-${idx}`} className="hover:bg-muted/30">
+                            <td className="px-3 py-1.5 truncate text-muted-foreground whitespace-nowrap">{row.time}</td>
+                            <td className="px-3 py-1.5 whitespace-nowrap text-right font-medium">{row[deviceKey]}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
       {stats && showFooter && (
@@ -427,7 +453,7 @@ export function HistoricalTrendWidget({
               <span className="font-medium text-foreground truncate w-full">{stats.min}{unit ? ` ${unit}` : ''} | {stats.minTime}</span>
             </div>
           )}
-          
+
           {showAvg && (
             <div className="flex flex-col items-center text-center truncate flex-1">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Avg</span>

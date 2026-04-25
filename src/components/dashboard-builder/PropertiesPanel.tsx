@@ -199,6 +199,16 @@ export default function PropertiesPanel() {
                 />
                 <Label htmlFor="showMax" className="font-normal cursor-pointer text-sm">Show Max Value</Label>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showTable"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showTable === true}
+                  onChange={(e) => handleConfigChange({ showTable: e.target.checked })}
+                />
+                <Label htmlFor="showTable" className="font-normal cursor-pointer text-sm">Show Data Table</Label>
+              </div>
             </div>
           </div>
         )}
