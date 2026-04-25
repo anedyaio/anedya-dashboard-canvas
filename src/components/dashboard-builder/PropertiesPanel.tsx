@@ -109,22 +109,53 @@ export default function PropertiesPanel() {
 
         {widget.type === 'HistoricalTrendWidget' && (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Unit symbol</Label>
-              <Input
-                placeholder="e.g. °C, %"
-                value={draftConfig.unit || ''}
-                onChange={(e) => handleConfigChange({ unit: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Chart Type</Label>
+                <Select
+                  value={draftConfig.chartType || 'area'}
+                  onValueChange={(val) => handleConfigChange({ chartType: val })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Area" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="area">Area</SelectItem>
+                    <SelectItem value="line">Line</SelectItem>
+                    <SelectItem value="bar">Bar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label title="Max time gap (mins) before dotted line gap">Max Gap (mins)</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 30"
+                  className="h-8"
+                  value={draftConfig.maxGapMins !== undefined ? draftConfig.maxGapMins : 30}
+                  onChange={(e) => handleConfigChange({ maxGapMins: e.target.value === '' ? undefined : Number(e.target.value) })}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Stroke Color</Label>
-              <Input
-                type="color"
-                className="h-8 px-2"
-                value={draftConfig.strokeColor || '#0ea5e9'}
-                onChange={(e) => handleConfigChange({ strokeColor: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Unit symbol</Label>
+                <Input
+                  className="h-8"
+                  placeholder="e.g. °C, %"
+                  value={draftConfig.unit || ''}
+                  onChange={(e) => handleConfigChange({ unit: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Line Color</Label>
+                <Input
+                  type="color"
+                  className="h-8 w-full p-0.5"
+                  value={draftConfig.strokeColor || '#0ea5e9'}
+                  onChange={(e) => handleConfigChange({ strokeColor: e.target.value })}
+                />
+              </div>
             </div>
             <div className="space-y-3 pt-2 border-t text-sm">
               <Label>Display Options</Label>

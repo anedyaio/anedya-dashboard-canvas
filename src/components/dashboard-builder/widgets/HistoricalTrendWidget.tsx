@@ -12,6 +12,7 @@ import {
   ComposedChart,
   Area,
   Line,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -47,6 +48,10 @@ export function HistoricalTrendWidget({
   const showAvg = config.config.showAvg !== false;
   const showMax = config.config.showMax !== false;
   const showFooter = showMin || showAvg || showMax;
+
+  const chartType = config.config.chartType || "area";
+  const maxGapMins = config.config.maxGapMins !== undefined ? Number(config.config.maxGapMins) : 30;
+  const maxGapSecs = maxGapMins * 60;
 
 
   const customRange = useMemo(() => {
@@ -107,25 +112,48 @@ export function HistoricalTrendWidget({
 
         const series = [];
         for (let i = 0; i < rawSeries.length; i++) {
-          series.push(rawSeries[i]);
+          const point = { ...rawSeries[i] };
+          
+          let isGapStart = false;
+          let isGapEnd = false;
+
           if (i < rawSeries.length - 1) {
-            const currentTs = rawSeries[i].timestamp;
-            const nextTs = rawSeries[i + 1].timestamp;
-            if (nextTs - currentTs > 1800) { // 30 mins gap
-              series.push({
-                time: new Date((currentTs + (nextTs - currentTs) / 2) * 1000).toLocaleString(undefined, {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  hour12: false,
-                }),
-                [deviceKey]: null,
-                timestamp: currentTs + (nextTs - currentTs) / 2,
-              });
+            if (rawSeries[i + 1].timestamp - point.timestamp > maxGapSecs) {
+              isGapStart = true;
             }
+          }
+          if (i > 0) {
+            if (point.timestamp - rawSeries[i - 1].timestamp > maxGapSecs) {
+              isGapEnd = true;
+            }
+          }
+
+          if (isGapStart || isGapEnd) {
+             point[`${deviceKey}_gap`] = point[deviceKey];
+          }
+
+          series.push(point);
+
+          if (isGapStart) {
+            const currentTs = point.timestamp;
+            const nextTs = rawSeries[i + 1].timestamp;
+            const currentVal = point[deviceKey];
+            const nextVal = rawSeries[i + 1][deviceKey];
+          
+            series.push({
+              time: new Date((currentTs + (nextTs - currentTs) / 2) * 1000).toLocaleString(undefined, {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false,
+              }),
+              [deviceKey]: null,
+              [`${deviceKey}_gap`]: (currentVal + nextVal) / 2,
+              timestamp: currentTs + (nextTs - currentTs) / 2,
+            });
           }
         }
         setData(series);
@@ -332,28 +360,50 @@ export function HistoricalTrendWidget({
                     }
                     labelStyle={{ color: "hsl(var(--foreground))", fontWeight: "bold", marginBottom: "4px" }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey={deviceKey || ""}
-                    stroke={strokeColor}
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                    fill="none"
-                    dot={false}
-                    activeDot={false}
-                    connectNulls={true}
-                    isAnimationActive={false}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey={deviceKey || ""}
-                    stroke={strokeColor}
-                    strokeWidth={3}
-                    fill={`url(#gradient-${deviceKey})`}
-                    dot={false}
-                    connectNulls={false}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
+                  {chartType !== 'bar' && (
+                    <Line
+                      type="linear"
+                      dataKey={`${deviceKey}_gap`}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      strokeDasharray="4 4"
+                      fill="none"
+                      dot={false}
+                      activeDot={false}
+                      connectNulls={false}
+                      isAnimationActive={false}
+                    />
+                  )}
+                  {chartType === 'area' && (
+                    <Area
+                      type="monotone"
+                      dataKey={deviceKey || ""}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      fill={`url(#gradient-${deviceKey})`}
+                      dot={false}
+                      connectNulls={false}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  )}
+                  {chartType === 'line' && (
+                    <Line
+                      type="monotone"
+                      dataKey={deviceKey || ""}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      dot={false}
+                      connectNulls={false}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  )}
+                  {chartType === 'bar' && (
+                    <Bar
+                      dataKey={deviceKey || ""}
+                      fill={strokeColor}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
