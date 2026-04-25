@@ -168,6 +168,25 @@ export default function PropertiesPanel() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label title="Maximum number of points to fetch">Data Limit</Label>
+              <Input
+                type="number"
+                placeholder="10000"
+                className="h-8"
+                min={1}
+                max={10000}
+                value={draftConfig.limit || ''}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : undefined;
+                  handleConfigChange({ limit: val !== undefined ? Math.min(val, 10000) : undefined });
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground italic">
+                Max: 10,000 points.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Unit symbol</Label>

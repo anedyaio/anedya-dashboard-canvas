@@ -86,7 +86,7 @@ export function HistoricalTrendWidget({
           from: from,
           to: to,
           order: "desc",
-          limit: 0,
+          limit: config.config.limit || 10000,
         }),
       });
 
