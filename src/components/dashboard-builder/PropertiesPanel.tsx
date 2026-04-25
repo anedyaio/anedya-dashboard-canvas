@@ -64,14 +64,39 @@ export default function PropertiesPanel() {
         </div>
 
         {/* Global Variable / Key for legacy/simple widgets */}
-        {!['ToggleSwitchWidget', 'SliderWidget', 'TankWidget'].includes(widget.type) && (
-          <div className="space-y-2">
-            <Label>Variable / Key</Label>
-            <Input
-              placeholder="e.g. temperature"
-              value={draftConfig.deviceKey || ''}
-              onChange={(e) => handleConfigChange({ deviceKey: e.target.value })}
-            />
+        {/* Global Variable / Key for legacy/simple widgets */}
+        {!['ToggleSwitchWidget', 'SliderWidget', 'DonutChartWidget'].includes(widget.type) && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Data Source</Label>
+              <Select
+                value={draftConfig.dataSource || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget'].includes(widget.type) ? 'variable' : 'valuestore')}
+                onValueChange={(val) => handleConfigChange({ dataSource: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select data source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget'].includes(widget.type) && (
+                    <SelectItem value="valuestore">Valuestore</SelectItem>
+                  )}
+                  {!['ToggleSwitchWidget', 'SliderWidget'].includes(widget.type) && (
+                    <SelectItem value="variable">Variable</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                { (draftConfig.dataSource === 'variable' || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget'].includes(widget.type) && !draftConfig.dataSource)) 
+                  ? 'Variable Identifier' : 'Key' }
+              </Label>
+              <Input
+                placeholder="e.g. temperature"
+                value={draftConfig.deviceKey || ''}
+                onChange={(e) => handleConfigChange({ deviceKey: e.target.value })}
+              />
+            </div>
           </div>
         )}
 
@@ -266,23 +291,10 @@ export default function PropertiesPanel() {
         {widget.type === 'ValueDisplayWidget' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Data Source</Label>
-              <Select
-                value={draftConfig.dataSource || 'valuestore'}
-                onValueChange={(val) => handleConfigChange({ dataSource: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select data source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="valuestore">Valuestore</SelectItem>
-                  <SelectItem value="variable">Variable</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground italic">
                 {(draftConfig.dataSource || 'valuestore') === 'valuestore'
-                  ? 'Fetches value from Anedya ValueStore API'
-                  : 'Fetches latest data point from Anedya Data API'}
+                  ? 'Fetches value from Anedya ValueStore'
+                  : 'Fetches latest data from Anedya Variable'}
               </p>
             </div>
             <div className="space-y-2">
@@ -410,23 +422,10 @@ export default function PropertiesPanel() {
         {widget.type === 'ValueStoreWidget' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Data Source</Label>
-              <Select
-                value={draftConfig.dataSource || 'valuestore'}
-                onValueChange={(val) => handleConfigChange({ dataSource: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select data source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="valuestore">Valuestore</SelectItem>
-                  <SelectItem value="variable">Variable</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground italic">
                 {(draftConfig.dataSource || 'valuestore') === 'valuestore'
-                  ? 'Read & write via Anedya ValueStore API'
-                  : 'Read-only from Anedya Data API (Set disabled)'}
+                  ? 'Read & write to Anedya ValueStore'
+                  : 'Read-only from Anedya Variables (Set disabled)'}
               </p>
             </div>
             <div className="space-y-2">
@@ -731,22 +730,6 @@ export default function PropertiesPanel() {
         {/* ── BatteryWidget ────────────────────────────────────────── */}
         {widget.type === 'BatteryWidget' && (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Data Source</Label>
-              <Select
-                value={draftConfig.dataSource || 'valuestore'}
-                onValueChange={(val) => handleConfigChange({ dataSource: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select data source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="valuestore">Valuestore</SelectItem>
-                  <SelectItem value="variable">Variable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Min (0%)</Label>
