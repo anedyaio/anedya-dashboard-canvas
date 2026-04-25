@@ -9,8 +9,9 @@ import { subDays } from 'date-fns';
 import { WidgetConfig } from '../../../store/useBuilderStore';
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -90,7 +91,7 @@ export function HistoricalTrendWidget({
 
       const pjson = await res.json();
       if (pjson?.data?.[nodeId]) {
-        const series = pjson.data[nodeId].map((p: any) => ({
+        const rawSeries = pjson.data[nodeId].map((p: any) => ({
           time: new Date(p.timestamp * 1000).toLocaleString(undefined, {
             year: "numeric",
             month: "2-digit",
@@ -103,6 +104,30 @@ export function HistoricalTrendWidget({
           [deviceKey]: +(Number(p.value).toFixed(1)),
           timestamp: p.timestamp,
         })).reverse();
+
+        const series = [];
+        for (let i = 0; i < rawSeries.length; i++) {
+          series.push(rawSeries[i]);
+          if (i < rawSeries.length - 1) {
+            const currentTs = rawSeries[i].timestamp;
+            const nextTs = rawSeries[i + 1].timestamp;
+            if (nextTs - currentTs > 1800) { // 30 mins gap
+              series.push({
+                time: new Date((currentTs + (nextTs - currentTs) / 2) * 1000).toLocaleString(undefined, {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                }),
+                [deviceKey]: null,
+                timestamp: currentTs + (nextTs - currentTs) / 2,
+              });
+            }
+          }
+        }
         setData(series);
       } else {
         setData([]);
@@ -266,7 +291,7 @@ export function HistoricalTrendWidget({
             )}
             <div className="absolute inset-4">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <ComposedChart data={data}>
                   <defs>
                     <linearGradient id={`gradient-${deviceKey}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />
@@ -307,6 +332,18 @@ export function HistoricalTrendWidget({
                     }
                     labelStyle={{ color: "hsl(var(--foreground))", fontWeight: "bold", marginBottom: "4px" }}
                   />
+                  <Line
+                    type="monotone"
+                    dataKey={deviceKey || ""}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    fill="none"
+                    dot={false}
+                    activeDot={false}
+                    connectNulls={true}
+                    isAnimationActive={false}
+                  />
                   <Area
                     type="monotone"
                     dataKey={deviceKey || ""}
@@ -314,9 +351,10 @@ export function HistoricalTrendWidget({
                     strokeWidth={3}
                     fill={`url(#gradient-${deviceKey})`}
                     dot={false}
+                    connectNulls={false}
                     activeDot={{ r: 6, strokeWidth: 0 }}
                   />
-                </AreaChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </>
