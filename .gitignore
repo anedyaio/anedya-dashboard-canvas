@@ -37,3 +37,6 @@ supabase/.env.local
 supabase/.env.development.local
 supabase/.env.test.local
 supabase/.env.production.local
+
+
+graphify-out
