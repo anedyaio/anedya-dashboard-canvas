@@ -12,7 +12,7 @@ Turn raw IoT telemetry into a polished dashboard experience in minutes.
 
 Anedya Dashboard Canvas helps teams launch multi-device monitoring dashboards with real-time insights, historical analysis, and remote control workflows out of the box.
 
-<!-- ![Screenshot](screenshot.png) _(Note: Replace with your actual screenshot later)_ -->
+![Canvas](./public/Canvas%20Sample%20Image/Canvas.png)
 
 ## ✨ Features
 
