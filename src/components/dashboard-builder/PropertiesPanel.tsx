@@ -66,7 +66,7 @@ export default function PropertiesPanel() {
 
         {/* Global Variable / Key for legacy/simple widgets */}
         {/* Global Variable / Key for legacy/simple widgets */}
-        {!['ToggleSwitchWidget', 'SliderWidget', 'DonutChartWidget'].includes(widget.type) && (
+        {!['ToggleSwitchWidget', 'SliderWidget', 'DonutChartWidget', 'CameraViewerWidget'].includes(widget.type) && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Data Source</Label>
@@ -102,6 +102,61 @@ export default function PropertiesPanel() {
         )}
 
         {/* Dynamic fields based on type */}
+        {widget.type === 'CameraViewerWidget' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground italic">
+                Connects to the camera on the device using WebRTC. 
+                Requires a device that supports the Anedya Video Streaming protocol.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>TURN Port</Label>
+              <Input
+                type="number"
+                placeholder="3478"
+                value={draftConfig.turnPort || ''}
+                onChange={(e) => handleConfigChange({ turnPort: e.target.value ? Number(e.target.value) : undefined })}
+              />
+              <p className="text-[10px] text-muted-foreground">Default: 3478</p>
+            </div>
+            
+            <div className="space-y-3 pt-2 border-t text-sm">
+              <Label>Display Options</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showSnapshotBtn"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showSnapshotBtn !== false}
+                  onChange={(e) => handleConfigChange({ showSnapshotBtn: e.target.checked })}
+                />
+                <Label htmlFor="showSnapshotBtn" className="font-normal cursor-pointer text-sm">Show Snapshot Button</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showFullscreenBtn"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showFullscreenBtn !== false}
+                  onChange={(e) => handleConfigChange({ showFullscreenBtn: e.target.checked })}
+                />
+                <Label htmlFor="showFullscreenBtn" className="font-normal cursor-pointer text-sm">Show Fullscreen Button</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showNetworkStatsBtn"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showNetworkStatsBtn !== false}
+                  onChange={(e) => handleConfigChange({ showNetworkStatsBtn: e.target.checked })}
+                />
+                <Label htmlFor="showNetworkStatsBtn" className="font-normal cursor-pointer text-sm">Show Network Stats Button</Label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {widget.type === 'GaugeWidget' && (
           <>
             <div className="space-y-2">

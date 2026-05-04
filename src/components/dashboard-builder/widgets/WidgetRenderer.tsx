@@ -12,6 +12,7 @@ import { SliderWidget } from './SliderWidget';
 import { TankWidget } from './TankWidget';
 import { SparklineWidget } from './SparklineWidget';
 import { MapWidget } from './MapWidget';
+import CameraViewerWidget from './CameraViewerWidget';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { AlertTriangle, HelpCircle, FileQuestion } from 'lucide-react';
 
@@ -158,6 +159,14 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
           config={config}
           nodeId={nodeId}
           pollIntervalMs={pollIntervalMs}
+          isEditMode={isEditMode}
+        />
+      );
+    case 'CameraViewerWidget':
+      return (
+        <CameraViewerWidget
+          config={config}
+          nodeId={nodeId}
           isEditMode={isEditMode}
         />
       );
