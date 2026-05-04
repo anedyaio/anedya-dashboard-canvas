@@ -41,7 +41,7 @@ Follow this exact order for a smooth deployment.
    - **Database password** (the password for this Supabase project)
    - **Project ID (Project Ref ID)** (the `<project-ref>` in `https://<project-ref>.supabase.co`)
    - **Personal Access Token** ([Account Settings → Access Tokens](https://supabase.com/dashboard/account/tokens))
-   - **Project URL** (Project Settings → API)
+   - **Project URL** (Home Page)
    - **Anon key** (Project Settings → API)
 
 ### Step 3: In your fork, add GitHub secrets and run workflow
