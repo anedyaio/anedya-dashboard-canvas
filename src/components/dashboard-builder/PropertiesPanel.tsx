@@ -71,14 +71,14 @@ export default function PropertiesPanel() {
             <div className="space-y-2">
               <Label>Data Source</Label>
               <Select
-                value={draftConfig.dataSource || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) ? 'variable' : 'valuestore')}
+                value={draftConfig.dataSource || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget', 'AggregateGoalWidget'].includes(widget.type) ? 'variable' : 'valuestore')}
                 onValueChange={(val) => handleConfigChange({ dataSource: val })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select data source" />
                 </SelectTrigger>
                 <SelectContent>
-                  {!['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) && (
+                  {!['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget', 'AggregateGoalWidget'].includes(widget.type) && (
                     <SelectItem value="valuestore">Valuestore</SelectItem>
                   )}
                   {!['ToggleSwitchWidget', 'SliderWidget'].includes(widget.type) && (
@@ -89,7 +89,7 @@ export default function PropertiesPanel() {
             </div>
             <div className="space-y-2">
               <Label>
-                { (draftConfig.dataSource === 'variable' || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) && !draftConfig.dataSource)) 
+                { (draftConfig.dataSource === 'variable' || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget', 'AggregateGoalWidget'].includes(widget.type) && !draftConfig.dataSource)) 
                   ? 'Variable Identifier' : 'Key' }
               </Label>
               <Input
@@ -486,6 +486,58 @@ export default function PropertiesPanel() {
                   onChange={(e) => handleConfigChange({ showTable: e.target.checked })}
                 />
                 <Label htmlFor="showTable" className="font-normal cursor-pointer text-sm">Show Data Table</Label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {widget.type === 'AggregateGoalWidget' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Compute</Label>
+                <Input
+                  className="h-8"
+                  placeholder="deltasum"
+                  value={draftConfig.compute || 'deltasum'}
+                  onChange={(e) => handleConfigChange({ compute: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Goal Value</Label>
+                <Input
+                  type="number"
+                  className="h-8"
+                  placeholder="300"
+                  value={draftConfig.goalValue !== undefined ? draftConfig.goalValue : 300}
+                  onChange={(e) => handleConfigChange({ goalValue: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Unit symbol</Label>
+                <Input
+                  className="h-8"
+                  placeholder="e.g. L"
+                  value={draftConfig.unit || ''}
+                  onChange={(e) => handleConfigChange({ unit: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t text-sm">
+              <Label>Display & Advanced</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="ag_showFooter"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showFooter !== false}
+                  onChange={(e) => handleConfigChange({ showFooter: e.target.checked })}
+                />
+                <Label htmlFor="ag_showFooter" className="font-normal cursor-pointer text-sm">Show Footer Message</Label>
               </div>
             </div>
           </div>
