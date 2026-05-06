@@ -31,7 +31,7 @@ export function AgrrChartWidget({
   isEditMode?: boolean;
 }) {
   const [date, setDate] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 1),
+    from: subDays(new Date(), 15),
     to: new Date(),
   });
   const [isLive, setIsLive] = useState<boolean>(true);
@@ -68,7 +68,7 @@ export function AgrrChartWidget({
     try {
       const apiKey = import.meta.env.VITE_ANEDYA_API_KEY;
       const now = Math.floor(Date.now() / 1000);
-      const from = customRange ? customRange.from : now - 86400 * 7; // Default 7 days if not custom
+      const from = customRange ? customRange.from : now - 86400 * 15; // Default 15 days if not custom
       const to = customRange ? customRange.to : now;
 
       const res = await fetch("https://api.anedya.io/v1/aggregates/variable/byTime", {
@@ -146,7 +146,7 @@ export function AgrrChartWidget({
   const handleLiveClick = () => {
     setIsLive(true);
     setDate({
-      from: subDays(new Date(), 1),
+      from: subDays(new Date(), 15),
       to: new Date(),
     });
   };
