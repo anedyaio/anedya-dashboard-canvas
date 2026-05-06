@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { WidgetConfig } from '../../../store/useBuilderStore';
 import GaugeWidget from './GaugeWidget';
 import { HistoricalTrendWidget } from './HistoricalTrendWidget';
+import { AgrrChartWidget } from './AgrrChartWidget';
 import { ValueDisplayWidget } from './ValueDisplayWidget';
 import { ValueStoreWidget } from './ValueStoreWidget';
 import { DonutChartWidget } from './DonutChartWidget';
@@ -75,6 +76,15 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
     case 'HistoricalTrendWidget':
       return (
         <HistoricalTrendWidget
+          config={config}
+          nodeId={nodeId}
+          pollIntervalMs={pollIntervalMs}
+          isEditMode={isEditMode}
+        />
+      );
+    case 'AgrrChartWidget':
+      return (
+        <AgrrChartWidget
           config={config}
           nodeId={nodeId}
           pollIntervalMs={pollIntervalMs}

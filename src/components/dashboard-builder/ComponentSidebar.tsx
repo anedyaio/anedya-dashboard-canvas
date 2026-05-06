@@ -1,12 +1,13 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gauge, LineChart, Hash, Settings, PieChart, ToggleRight, Battery, SlidersHorizontal, Cylinder, Activity, Map as MapIcon, Video } from 'lucide-react';
+import { Gauge, LineChart, Hash, Settings, PieChart, ToggleRight, Battery, SlidersHorizontal, Cylinder, Activity, Map as MapIcon, Video, BarChart2 } from 'lucide-react';
 import { useBuilderStore } from '../../store/useBuilderStore';
 import { WIDGET_SIZE_CONSTRAINTS } from './widgetConfig';
 
 const WIDGET_TYPES = [
   { id: 'GaugeWidget', name: 'Gauge', icon: <Gauge size={18} /> },
   { id: 'HistoricalTrendWidget', name: 'Historical Trend', icon: <LineChart size={18} /> },
+  { id: 'AgrrChartWidget', name: 'Aggregate Chart', icon: <BarChart2 size={18} /> },
   { id: 'ValueDisplayWidget', name: 'Value Display', icon: <Hash size={18} /> },
   { id: 'ValueStoreWidget', name: 'Value Store Control', icon: <Settings size={18} /> },
   { id: 'DonutChartWidget',    name: 'Donut Chart',          icon: <PieChart size={18} /> },

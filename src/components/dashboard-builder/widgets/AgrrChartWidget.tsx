@@ -1,0 +1,422 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Activity, Play, ArrowDownToLine } from 'lucide-react';
+import { DatePickerWithRange } from '@/components/DateRangePicker';
+import { DateRange } from 'react-day-picker';
+import { subDays } from 'date-fns';
+import { WidgetConfig } from '../../../store/useBuilderStore';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+
+export function AgrrChartWidget({
+  config,
+  nodeId,
+  pollIntervalMs = 60000,
+  isEditMode,
+}: {
+  config: WidgetConfig;
+  nodeId?: string;
+  pollIntervalMs?: number;
+  isEditMode?: boolean;
+}) {
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 1),
+    to: new Date(),
+  });
+  const [isLive, setIsLive] = useState<boolean>(true);
+  const [data, setData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const deviceKey = config.config.deviceKey;
+  const strokeColor = config.config.strokeColor || "hsl(var(--primary))";
+  const unit = config.config.unit;
+
+  const showLatest = config.config.showLatest !== false;
+  const showMin = config.config.showMin !== false;
+  const showAvg = config.config.showAvg !== false;
+  const showMax = config.config.showMax !== false;
+  const showFooter = showMin || showAvg || showMax;
+
+  const chartType = config.config.chartType || "bar"; // Usually aggregate chart makes sense as a bar, but let user choose
+
+  const customRange = useMemo(() => {
+    if (isLive || !date?.from) return null;
+    const fromTime = new Date(date.from);
+    const toTime = date.to ? new Date(date.to) : new Date(fromTime);
+    return {
+      from: Math.floor(fromTime.getTime() / 1000),
+      to: Math.floor(toTime.getTime() / 1000),
+    };
+  }, [date, isLive]);
+
+  const fetchData = useCallback(async () => {
+    if (isEditMode || !nodeId || !deviceKey) return;
+
+    setIsLoading(true);
+    try {
+      const apiKey = import.meta.env.VITE_ANEDYA_API_KEY;
+      const now = Math.floor(Date.now() / 1000);
+      const from = customRange ? customRange.from : now - 86400 * 7; // Default 7 days if not custom
+      const to = customRange ? customRange.to : now;
+
+      const res = await fetch("https://api.anedya.io/v1/aggregates/variable/byTime", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          variable: deviceKey,
+          from: from,
+          to: to,
+          config: {
+            aggregation: {
+              compute: config.config.compute || "deltasum",
+              forEachNode: config.config.forEachNode || false
+            },
+            interval: {
+              measure: config.config.measure || "day",
+              interval: config.config.interval !== undefined ? Number(config.config.interval) : 1
+            },
+            responseOptions: {
+              timezone: "UTC"
+            },
+            filter: {
+              nodes: [nodeId],
+              type: "include"
+            }
+          }
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch aggregate data");
+      }
+
+      const pjson = await res.json();
+      if (pjson?.data && Array.isArray(pjson.data)) {
+        const rawSeries = pjson.data.map((p: any) => ({
+          time: new Date(p.timestamp * 1000).toLocaleString(undefined, {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          }),
+          [deviceKey]: +(Number(p.aggregate).toFixed(1)),
+          timestamp: p.timestamp,
+        })).sort((a: any, b: any) => a.timestamp - b.timestamp);
+
+        setData(rawSeries);
+      } else {
+        setData([]);
+      }
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+      setData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nodeId, deviceKey, customRange, isEditMode, config.config.compute, config.config.forEachNode, config.config.measure, config.config.interval]);
+
+  useEffect(() => {
+    fetchData();
+
+    if (!customRange && pollIntervalMs > 0) {
+      const interval = setInterval(fetchData, pollIntervalMs);
+      return () => clearInterval(interval);
+    }
+  }, [fetchData, pollIntervalMs, customRange]);
+
+  const handleLiveClick = () => {
+    setIsLive(true);
+    setDate({
+      from: subDays(new Date(), 1),
+      to: new Date(),
+    });
+  };
+
+  const handleDateChange = (newDate: DateRange | undefined) => {
+    setDate(newDate);
+    if (newDate?.from && newDate?.to) {
+      setIsLive(false);
+    }
+  };
+
+  const stats = useMemo(() => {
+    if (!data || data.length === 0 || !deviceKey) return null;
+
+    let min = Infinity;
+    let max = -Infinity;
+    let minTime = "";
+    let maxTime = "";
+    let sum = 0;
+    let count = 0;
+
+    let lastValue = undefined;
+    let lastTime = "";
+
+    for (let i = data.length - 1; i >= 0; i--) {
+      if (data[i][deviceKey] !== null && data[i][deviceKey] !== undefined) {
+        lastValue = data[i][deviceKey];
+        lastTime = data[i].time;
+        break;
+      }
+    }
+
+    for (const item of data) {
+      if (item[deviceKey] === null || item[deviceKey] === undefined) continue;
+
+      const val = Number(item[deviceKey]);
+      if (!isNaN(val)) {
+        if (val < min) {
+          min = val;
+          minTime = item.time;
+        }
+        if (val > max) {
+          max = val;
+          maxTime = item.time;
+        }
+        sum += val;
+        count++;
+      }
+    }
+
+    const avg = count > 0 ? (sum / count).toFixed(1) : '-';
+
+    return {
+      min: min === Infinity ? '-' : min,
+      minTime,
+      max: max === -Infinity ? '-' : max,
+      maxTime,
+      avg,
+      last: lastValue !== undefined ? lastValue : '-',
+      lastTime
+    };
+  }, [data, deviceKey]);
+
+  const handleExport = () => {
+    if (!data.length) return;
+    const headers = ["Date-Time (ISO)", `${config.title} (${config.config.unit || ""})`];
+    const csvRows = [headers.join(",")];
+
+    const sortedData = [...data].sort((a, b) => a.timestamp - b.timestamp);
+    sortedData.forEach(entry => {
+      const isoTime = `"${entry.time.replace(/"/g, '""')}"`;
+      csvRows.push(`${isoTime},${entry[deviceKey] ?? ""}`);
+    });
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.setAttribute("hidden", "");
+    a.setAttribute("href", url);
+    a.setAttribute("download", `${deviceKey}_aggregate_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  return (
+    <Card className="w-full h-full flex flex-col hover:border-primary transition-colors cursor-default overflow-hidden">
+      <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-card z-10 relative">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 min-w-[50px] shrink-0">
+            <Activity className="h-4 w-4 text-primary shrink-0" />
+            <CardTitle className="text-sm font-medium truncate" title={config.title}>
+              {config.title}
+            </CardTitle>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={isLive ? "default" : "outline"}
+              size="sm"
+              onClick={handleLiveClick}
+              className="gap-2 h-9"
+            >
+              <Play className="h-3 w-3" />
+              Live
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              className="gap-2 h-9"
+              title="Export Data as CSV"
+            >
+              <ArrowDownToLine className="h-3 w-3" />
+              Export
+            </Button>
+            <DatePickerWithRange date={date} setDate={handleDateChange} />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 flex-1 relative min-h-[150px]">
+        {isEditMode ? (
+          <div className="absolute inset-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border">
+            Aggregate Chart Preview
+          </div>
+        ) : isLoading && data.length === 0 ? (
+          <div className="absolute inset-0 p-4">
+            <Skeleton className="w-full h-full" />
+          </div>
+        ) : data.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+            No data available
+          </div>
+        ) : (
+          <div className={`absolute inset-4 flex ${config.config.showTable ? "gap-4" : ""}`}>
+            <div className={`relative ${config.config.showTable ? "basis-[60%] overflow-hidden" : "w-full overflow-hidden"}`} style={{ height: "100%" }}>
+              {stats && showLatest && (
+                <div className="absolute top-0 right-1 z-10 flex flex-col items-end text-right p-1.5 rounded pointer-events-none">
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-xl font-bold text-foreground leading-none">{stats.last}</span>
+                    {unit && <span className="text-xs font-semibold text-muted-foreground">{unit}</span>}
+                  </div>
+                  <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{stats.lastTime}</span>
+                </div>
+              )}
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={data}>
+                  <defs>
+                    <linearGradient id={`gradient-${deviceKey}-aggr`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    className="stroke-border"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="time"
+                    className="text-xs"
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={30}
+                  />
+                  <YAxis
+                    className="text-xs"
+                    domain={['auto', 'auto']}
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${value}`}
+                    width={40}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                    }}
+                    formatter={(value: number) =>
+                      unit ? [`${value} ${unit}`, config.title] : [value, config.title]
+                    }
+                    labelStyle={{ color: "hsl(var(--foreground))", fontWeight: "bold", marginBottom: "4px" }}
+                  />
+                  {chartType === 'area' && (
+                    <Area
+                      type="monotone"
+                      dataKey={deviceKey || ""}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      fill={`url(#gradient-${deviceKey}-aggr)`}
+                      dot={false}
+                      connectNulls={false}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  )}
+                  {chartType === 'line' && (
+                    <Line
+                      type="monotone"
+                      dataKey={deviceKey || ""}
+                      stroke={strokeColor}
+                      strokeWidth={3}
+                      dot={false}
+                      connectNulls={false}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  )}
+                  {chartType === 'bar' && (
+                    <Bar
+                      dataKey={deviceKey || ""}
+                      fill={strokeColor}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            {config.config.showTable && (
+              <div className="basis-[40%] flex flex-col h-full border rounded bg-card overflow-hidden">
+                <div className="bg-muted/50 px-3 py-1.5 border-b text-xs font-semibold flex justify-between">
+                  <span>Time</span>
+                  <span>{config.title} {unit ? `(${unit})` : ''}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <tbody className="divide-y divide-border">
+                      {data
+                        .filter((d) => d[deviceKey] !== null && d[deviceKey] !== undefined)
+                        .reverse()
+                        .map((row, idx) => (
+                          <tr key={`${row.timestamp}-${idx}`} className="hover:bg-muted/30">
+                            <td className="px-3 py-1.5 truncate text-muted-foreground whitespace-nowrap">{row.time}</td>
+                            <td className="px-3 py-1.5 whitespace-nowrap text-right font-medium">{row[deviceKey]}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+      {stats && showFooter && (
+        <div className="mt-auto pt-2 pb-2 px-4 border-t border-border flex justify-between items-center text-xs shrink-0 z-10 bg-card gap-4 w-full">
+          {showMin && (
+            <div className={`flex flex-col truncate flex-1 ${(!showAvg && !showMax) ? 'items-center text-center' : 'items-start text-left'}`}>
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Min</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.min}{unit ? ` ${unit}` : ''} | {stats.minTime}</span>
+            </div>
+          )}
+
+          {showAvg && (
+            <div className="flex flex-col items-center text-center truncate flex-1">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Avg</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.avg}{unit ? ` ${unit}` : ''}</span>
+            </div>
+          )}
+
+          {showMax && (
+            <div className={`flex flex-col truncate flex-1 ${(!showAvg && !showMin) ? 'items-center text-center' : 'items-end text-right'}`}>
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Max</span>
+              <span className="font-medium text-foreground truncate w-full">{stats.max}{unit ? ` ${unit}` : ''} | {stats.maxTime}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}

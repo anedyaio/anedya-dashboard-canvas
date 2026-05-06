@@ -71,14 +71,14 @@ export default function PropertiesPanel() {
             <div className="space-y-2">
               <Label>Data Source</Label>
               <Select
-                value={draftConfig.dataSource || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget'].includes(widget.type) ? 'variable' : 'valuestore')}
+                value={draftConfig.dataSource || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) ? 'variable' : 'valuestore')}
                 onValueChange={(val) => handleConfigChange({ dataSource: val })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select data source" />
                 </SelectTrigger>
                 <SelectContent>
-                  {!['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget'].includes(widget.type) && (
+                  {!['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) && (
                     <SelectItem value="valuestore">Valuestore</SelectItem>
                   )}
                   {!['ToggleSwitchWidget', 'SliderWidget'].includes(widget.type) && (
@@ -89,7 +89,7 @@ export default function PropertiesPanel() {
             </div>
             <div className="space-y-2">
               <Label>
-                { (draftConfig.dataSource === 'variable' || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget'].includes(widget.type) && !draftConfig.dataSource)) 
+                { (draftConfig.dataSource === 'variable' || (['HistoricalTrendWidget', 'SparklineWidget', 'GaugeWidget', 'MapWidget', 'AgrrChartWidget'].includes(widget.type) && !draftConfig.dataSource)) 
                   ? 'Variable Identifier' : 'Key' }
               </Label>
               <Input
@@ -290,6 +290,153 @@ export default function PropertiesPanel() {
             </div>
             <div className="space-y-3 pt-2 border-t text-sm">
               <Label>Display Options</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showLatest"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showLatest !== false}
+                  onChange={(e) => handleConfigChange({ showLatest: e.target.checked })}
+                />
+                <Label htmlFor="showLatest" className="font-normal cursor-pointer text-sm">Show Latest Value</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showMin"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showMin !== false}
+                  onChange={(e) => handleConfigChange({ showMin: e.target.checked })}
+                />
+                <Label htmlFor="showMin" className="font-normal cursor-pointer text-sm">Show Min Value</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showAvg"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showAvg !== false}
+                  onChange={(e) => handleConfigChange({ showAvg: e.target.checked })}
+                />
+                <Label htmlFor="showAvg" className="font-normal cursor-pointer text-sm">Show Average Value</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showMax"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showMax !== false}
+                  onChange={(e) => handleConfigChange({ showMax: e.target.checked })}
+                />
+                <Label htmlFor="showMax" className="font-normal cursor-pointer text-sm">Show Max Value</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showTable"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showTable === true}
+                  onChange={(e) => handleConfigChange({ showTable: e.target.checked })}
+                />
+                <Label htmlFor="showTable" className="font-normal cursor-pointer text-sm">Show Data Table</Label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {widget.type === 'AgrrChartWidget' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Chart Type</Label>
+                <Select
+                  value={draftConfig.chartType || 'bar'}
+                  onValueChange={(val) => handleConfigChange({ chartType: val })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Bar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="area">Area</SelectItem>
+                    <SelectItem value="line">Line</SelectItem>
+                    <SelectItem value="bar">Bar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Compute</Label>
+                <Input
+                  className="h-8"
+                  placeholder="deltasum"
+                  value={draftConfig.compute || 'deltasum'}
+                  onChange={(e) => handleConfigChange({ compute: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Measure</Label>
+                <Select
+                  value={draftConfig.measure || 'day'}
+                  onValueChange={(val) => handleConfigChange({ measure: val })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minute">Minute</SelectItem>
+                    <SelectItem value="day">Day</SelectItem>
+                    <SelectItem value="month">Month</SelectItem>
+                    <SelectItem value="year">Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Interval</Label>
+                <Input
+                  type="number"
+                  className="h-8"
+                  placeholder="1"
+                  min={1}
+                  value={draftConfig.interval !== undefined ? draftConfig.interval : 1}
+                  onChange={(e) => handleConfigChange({ interval: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Unit symbol</Label>
+                <Input
+                  className="h-8"
+                  placeholder="e.g. °C, %"
+                  value={draftConfig.unit || ''}
+                  onChange={(e) => handleConfigChange({ unit: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <Input
+                  type="color"
+                  className="h-8 w-full p-0.5"
+                  value={draftConfig.strokeColor || '#0ea5e9'}
+                  onChange={(e) => handleConfigChange({ strokeColor: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-3 pt-2 border-t text-sm">
+              <Label>Display & Advanced</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="aggr_forEachNode"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.forEachNode === true}
+                  onChange={(e) => handleConfigChange({ forEachNode: e.target.checked })}
+                />
+                <Label htmlFor="aggr_forEachNode" className="font-normal cursor-pointer text-sm">For Each Node</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
