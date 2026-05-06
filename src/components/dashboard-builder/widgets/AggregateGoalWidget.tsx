@@ -9,11 +9,15 @@ export function AggregateGoalWidget({
   nodeId,
   pollIntervalMs = 60000,
   isEditMode,
+  w,
+  h,
 }: {
   config: WidgetConfig;
   nodeId?: string;
   pollIntervalMs?: number;
   isEditMode?: boolean;
+  w?: number;
+  h?: number;
 }) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,16 +26,20 @@ export function AggregateGoalWidget({
   const deviceKey = config.config.deviceKey;
   const unit = config.config.unit || "";
   const goalValue = config.config.goalValue ? Number(config.config.goalValue) : 300;
-  
+
   const fetchData = useCallback(async () => {
     if (isEditMode || !nodeId || !deviceKey) return;
 
     setIsLoading(true);
     try {
       const apiKey = import.meta.env.VITE_ANEDYA_API_KEY;
-      const now = Math.floor(Date.now() / 1000);
-      const from = now - 86400 * 7; 
-      const to = now;
+      
+      // Align to start of current day in UTC to ensure consistent buckets
+      const now = new Date();
+      const to = Math.floor(now.getTime() / 1000);
+      
+      const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const from = Math.floor(startOfToday.getTime() / 1000) - (86400 * 7);
 
       const res = await fetch("https://api.anedya.io/v1/aggregates/variable/byTime", {
         method: "POST",
@@ -70,18 +78,18 @@ export function AggregateGoalWidget({
       const pjson = await res.json();
       if (pjson?.data && Array.isArray(pjson.data)) {
         const sorted = pjson.data.sort((a: any, b: any) => a.timestamp - b.timestamp);
-        
+
         let todayVal = 0;
         let yesterdayVal = 0;
         let weekSum = 0;
-        
+
         if (sorted.length > 0) {
           todayVal = sorted[sorted.length - 1].aggregate;
         }
         if (sorted.length > 1) {
           yesterdayVal = sorted[sorted.length - 2].aggregate;
         }
-        
+
         let weekCount = 0;
         for (const item of sorted) {
           weekSum += item.aggregate;
@@ -118,11 +126,11 @@ export function AggregateGoalWidget({
   const isReady = isEditMode || (displayData !== null);
 
   const percentage = isReady && goalValue > 0 ? Math.min(100, Math.round((displayData.today / goalValue) * 100)) : 0;
-  
-  const diffPercent = isReady && displayData.yesterday > 0 
-    ? Math.round(((displayData.today - displayData.yesterday) / displayData.yesterday) * 100) 
+
+  const diffPercent = isReady && displayData.yesterday > 0
+    ? Math.round(((displayData.today - displayData.yesterday) / displayData.yesterday) * 100)
     : 0;
-    
+
   const isUp = diffPercent >= 0;
 
   // Circular progress math
@@ -130,15 +138,32 @@ export function AggregateGoalWidget({
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
+  const isSmall = isEditMode && w !== undefined && h !== undefined && (w < 8 || h < 3);
+
   return (
     <Card className="w-full h-full flex flex-col bg-white overflow-hidden border border-slate-100 shadow-sm rounded-2xl relative">
-      {!isReady && isLoading && !isEditMode && (
-        <div className="absolute inset-0 p-6 z-10 bg-white">
-          <Skeleton className="w-full h-full rounded-xl" />
-        </div>
-      )}
-      
-      <CardContent className="p-3 sm:p-6 flex flex-col h-full overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-col h-full">
+        {/* Always show small header in Edit Mode if small */}
+        {isSmall && (
+          <div className="px-4 py-3 border-b border-slate-50 flex items-center gap-2 shrink-0">
+            <Droplet className="w-4 h-4 text-blue-500" />
+            <h3 className="font-semibold text-slate-800 text-sm truncate">{config.title || "Goal Tracker"}</h3>
+          </div>
+        )}
+
+        {isSmall ? (
+          <div className="flex-1 m-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border text-center px-2">
+            Preview Placeholder
+          </div>
+        ) : (
+          <>
+          {!isReady && isLoading && !isEditMode && (
+            <div className="absolute inset-0 p-6 z-10 bg-white">
+              <Skeleton className="w-full h-full rounded-xl" />
+            </div>
+          )}
+
+          <CardContent className="p-3 sm:p-6 flex flex-col h-full overflow-y-auto overflow-x-hidden">
         {/* Header */}
         <div className="flex justify-between items-start mb-3 sm:mb-6">
           <div className="flex items-center gap-3">
@@ -149,16 +174,9 @@ export function AggregateGoalWidget({
               <h3 className="font-semibold text-slate-800 text-sm sm:text-base leading-tight">{config.title || "Goal Tracker"}</h3>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-slate-500">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Live
-                </span>
               </div>
             </div>
           </div>
-          <button className="text-slate-400 hover:text-slate-600">
-            <MoreVertical className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Main Content */}
@@ -263,7 +281,10 @@ export function AggregateGoalWidget({
             </div>
           </div>
         )}
-      </CardContent>
+          </CardContent>
+        </>
+      )}
+      </div>
     </Card>
   );
 }

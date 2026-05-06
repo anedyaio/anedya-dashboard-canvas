@@ -24,11 +24,15 @@ export function HistoricalTrendWidget({
   nodeId,
   pollIntervalMs = 60000,
   isEditMode,
+  w,
+  h,
 }: {
   config: WidgetConfig;
   nodeId?: string;
   pollIntervalMs?: number;
   isEditMode?: boolean;
+  w?: number;
+  h?: number;
 }) {
   const [date, setDate] = useState<DateRange | undefined>({
     from: subDays(new Date(), 1),
@@ -269,9 +273,28 @@ export function HistoricalTrendWidget({
     document.body.removeChild(a);
   };
 
+  const isSmall = isEditMode && w !== undefined && h !== undefined && (w < 6 || h < 2);
+
   return (
     <Card className="w-full h-full flex flex-col hover:border-primary transition-colors cursor-default overflow-hidden">
-      <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-card z-10 relative">
+      {isSmall && (
+        <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-card z-10 relative">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary shrink-0" />
+            <CardTitle className="text-sm font-medium truncate">
+              {config.title || "Historical Chart"}
+            </CardTitle>
+          </div>
+        </CardHeader>
+      )}
+
+      {isSmall ? (
+        <div className="flex-1 m-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border text-center px-2">
+          Preview Placeholder
+        </div>
+      ) : (
+        <>
+          <CardHeader className="pb-3 pt-3 px-4 border-b flex-none bg-card z-10 relative">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2 min-w-[50px] shrink-0">
             <Activity className="h-4 w-4 text-primary shrink-0" />
@@ -305,8 +328,8 @@ export function HistoricalTrendWidget({
       </CardHeader>
       <CardContent className="p-0 flex-1 relative min-h-[150px]">
         {isEditMode ? (
-          <div className="absolute inset-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border">
-            Historical Trend Preview
+          <div className="absolute inset-4 flex items-center justify-center bg-muted/30 text-muted-foreground text-sm rounded outline-dashed outline-2 outline-border text-center px-2">
+            {config.title || "Historical Chart"} Preview
           </div>
         ) : isLoading && data.length === 0 ? (
           <div className="absolute inset-0 p-4">
@@ -468,6 +491,8 @@ export function HistoricalTrendWidget({
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </Card>
   );

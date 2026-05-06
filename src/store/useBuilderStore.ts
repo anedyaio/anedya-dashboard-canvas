@@ -240,11 +240,11 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     // This prevents a known react-grid-layout race condition where onDrop triggers
     // onLayoutChange before the new widget has been rendered into the grid children,
     // causing the new widget to be instantly deleted.
-    
+
     const nextLayout = state.layout.map(existingItem => {
       // Only process items for this section
       if (existingItem.sectionId !== sectionId) return existingItem;
-      
+
       const newPos = newLayout.find((l: any) => l.i === existingItem.i);
       if (newPos) {
         return {
@@ -253,7 +253,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
           sectionId // ensure sectionId safety
         };
       }
-      
+
       return existingItem; // Retain items not reported by react-grid-layout yet
     });
 
@@ -266,7 +266,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   setTemplate: (sections, layout, widgets) => {
     const activeSections = sections.length > 0 ? sections : [...DEFAULT_SECTIONS];
     const defaultSectionId = activeSections[0].id;
-    
+
     // Purge old container items and validate remaining widgets
     const validLayout = layout.filter(l => {
       const w = widgets[l.i];

@@ -23,6 +23,8 @@ interface WidgetRendererProps {
   nodeId?: string;
   pollIntervalMs?: number;
   isEditMode?: boolean;
+  w?: number;
+  h?: number;
 }
 
 function GaugeWidgetRuntime({
@@ -53,7 +55,7 @@ function GaugeWidgetRuntime({
 }
 
 export default function WidgetRenderer(props: WidgetRendererProps) {
-  const { config, nodeId, pollIntervalMs, isEditMode } = props;
+  const { config, nodeId, pollIntervalMs, isEditMode, w, h } = props;
 
   if (!config) {
     return (
@@ -81,6 +83,8 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
           nodeId={nodeId}
           pollIntervalMs={pollIntervalMs}
           isEditMode={isEditMode}
+          w={w}
+          h={h}
         />
       );
     case 'AgrrChartWidget':
@@ -90,6 +94,8 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
           nodeId={nodeId}
           pollIntervalMs={pollIntervalMs}
           isEditMode={isEditMode}
+          w={w}
+          h={h}
         />
       );
     case 'AggregateGoalWidget':
@@ -99,6 +105,8 @@ export default function WidgetRenderer(props: WidgetRendererProps) {
           nodeId={nodeId}
           pollIntervalMs={pollIntervalMs}
           isEditMode={isEditMode}
+          w={w}
+          h={h}
         />
       );
     case 'ValueDisplayWidget':

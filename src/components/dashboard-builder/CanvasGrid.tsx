@@ -228,6 +228,8 @@ function SectionGrid({ section, isOnly }: { section: Section; isOnly: boolean })
                   <WidgetRenderer
                     config={widgets[item.i]}
                     isEditMode={true}
+                    w={item.w}
+                    h={item.h}
                   />
                 </div>
               </div>
