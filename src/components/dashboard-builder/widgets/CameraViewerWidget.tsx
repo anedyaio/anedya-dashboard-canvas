@@ -24,7 +24,113 @@ function formatTime(totalSeconds: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+async function deflateRaw(str: string): Promise<Uint8Array> {
+  const encoded = new TextEncoder().encode(str);
+  const cs = new (window as any).CompressionStream("deflate-raw");
+  const writer = cs.writable.getWriter();
+  await writer.write(encoded);
+  await writer.close();
+  const chunks: Uint8Array[] = [];
+  const reader = cs.readable.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const buf = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.length;
+  }
+  return buf;
+}
+
+function uint8ToBase64(buf: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < buf.length; i++) {
+    binary += String.fromCharCode(buf[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const buf = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    buf[i] = binary.charCodeAt(i);
+  }
+  return buf;
+}
+
+async function inflateRaw(buf: Uint8Array): Promise<string> {
+  const ds = new (window as any).DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  await writer.write(buf);
+  await writer.close();
+  const chunks: Uint8Array[] = [];
+  const reader = ds.readable.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return new TextDecoder().decode(out);
+}
+
+
+function optimizeSdp(sdp: string): string {
+  const lines = sdp.split('\n');
+  const optimizedLines = [];
+
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l) continue;
+
+    // Filter out non-essential attributes to reduce SDP payload size
+    if (
+      l.startsWith('a=extmap:') ||
+      l.startsWith('a=rtcp-fb:') ||
+      l.startsWith('a=rtpmap:') ||
+      l.startsWith('a=fmtp:') ||
+      l.startsWith('a=ssrc:') ||
+      l.startsWith('a=msid:') ||
+      l.startsWith('a=rid:') ||
+      l.startsWith('a=simulcast:')
+    ) {
+      continue;
+    }
+
+    // Filter candidates
+    if (l.startsWith('a=candidate:')) {
+      // Exclude TCP candidates
+      if (l.toLowerCase().includes('tcp')) continue;
+
+      // Exclude IPv6 candidates
+      const parts = l.split(' ');
+      const ip = parts[4];
+      if (ip && ip.includes(':')) {
+        continue;
+      }
+    }
+
+    optimizedLines.push(l);
+  }
+
+  return optimizedLines.join('\r\n') + '\r\n';
+}
+
+
 export default function CameraViewerWidget({ config, nodeId, isEditMode }: CameraViewerWidgetProps) {
+  const signalingMode = config?.config?.signalingMode || 'valuestore';
   const [status, setStatus] = useState<'ready' | 'connecting' | 'streaming' | 'error'>('ready');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -43,6 +149,42 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   const [isMuted, setIsMuted] = useState(true);
   const [connectionType, setConnectionType] = useState<'P2P' | 'TURN' | null>(null);
   const [connectionProgress, setConnectionProgress] = useState('CONNECTING...');
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const lastFrameUrlRef = useRef<string | null>(null);
+
+  const statsStartMs = useRef<number>(0);
+  const statsLastReportMs = useRef<number>(0);
+  const statsWindowFrames = useRef<number>(0);
+  const statsWindowBytes = useRef<number>(0);
+
+  const recordJpegStats = (byteLength: number) => {
+    const now = performance.now();
+    if (!statsStartMs.current) {
+      statsStartMs.current = now;
+      statsLastReportMs.current = now;
+    }
+
+    statsWindowFrames.current += 1;
+    statsWindowBytes.current += byteLength;
+
+    const windowSeconds = (now - statsLastReportMs.current) / 1000;
+    if (windowSeconds >= 1) {
+      const fps = statsWindowFrames.current / Math.max(windowSeconds, 0.001);
+      const bitrate = (statsWindowBytes.current * 8) / 1000 / Math.max(windowSeconds, 0.001);
+
+      setNetworkStats({
+        bitrate: Math.round(bitrate),
+        fps: Math.round(fps),
+        packetLoss: 0,
+        resolution: ''
+      });
+
+      statsLastReportMs.current = now;
+      statsWindowFrames.current = 0;
+      statsWindowBytes.current = 0;
+    }
+  };
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -89,6 +231,38 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
     return json.value;
   };
 
+  const sendCmdOffer = async (b64: string) => {
+    if (!nodeId) return null;
+    const resp = await fetch(`${ANEDYA_API_BASE}/commands/send`, {
+      method: 'POST',
+      headers: getVsHeaders(),
+      body: JSON.stringify({
+        nodeId: nodeId,
+        command: 'webrtc_offer',
+        data: b64,
+        type: 'string',
+        expiry: Date.now() + 300000,
+      }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Command send failed: ${resp.status} - ${text}`);
+    }
+    const json = await resp.json();
+    return json.commandId || json.id || json.commandID;
+  };
+
+  const getCommandStatus = async (commandId: string) => {
+    const resp = await fetch(`${ANEDYA_API_BASE}/commands/getDetails`, {
+      method: 'POST',
+      headers: getVsHeaders(),
+      body: JSON.stringify({ commandId }),
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  };
+
+
   const fetchTurnCredentials = async () => {
     const resp = await fetch(`${ANEDYA_API_BASE}/relay/create`, {
       method: 'POST',
@@ -115,6 +289,17 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+
+    if (lastFrameUrlRef.current) {
+      URL.revokeObjectURL(lastFrameUrlRef.current);
+      lastFrameUrlRef.current = null;
+    }
+    setImageUrl(null);
+
+    statsStartMs.current = 0;
+    statsLastReportMs.current = 0;
+    statsWindowFrames.current = 0;
+    statsWindowBytes.current = 0;
 
     if (!isError) {
       setStatus('ready');
@@ -149,71 +334,114 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       const relayData = await fetchTurnCredentials();
       const turnPort = config?.config?.turnPort || 3478;
 
+      const iceServers: RTCIceServer[] = [
+        { urls: `stun:${relayData.endpoint}:${turnPort}` }
+      ];
+      if (!forceRelay) {
+        iceServers.push({ urls: 'stun:stun.l.google.com:19302' });
+      }
+      iceServers.push({
+        urls: `turn:${relayData.endpoint}:${turnPort}`,
+        username: relayData.username,
+        credential: relayData.password
+      });
+
       const iceConfig = {
         iceTransportPolicy: forceRelay ? 'relay' : 'all' as RTCIceTransportPolicy,
-        iceServers: [{
-          urls: [
-            `stun:${relayData.endpoint}:${turnPort}`,
-            `turn:${relayData.endpoint}:${turnPort}`
-          ],
-          username: relayData.username,
-          credential: relayData.password
-        }],
+        iceServers
       };
 
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
-      const dc = pc.createDataChannel('control', { ordered: true });
-      dcRef.current = dc;
 
-      dc.onopen = () => {
-        sendCmd({ cmd: 'timeline' });
-        timelineTimerRef.current = setInterval(() => sendCmd({ cmd: 'timeline' }), 2000);
-      };
+      let dc: RTCDataChannel;
+      if (signalingMode === 'command') {
+        dc = pc.createDataChannel('jpeg-test', { ordered: false, maxRetransmits: 0 });
+        dc.binaryType = 'arraybuffer';
 
-      dc.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'timeline') {
-            const newDuration = Number(msg.duration || 0);
-            const newPosition = Number(msg.playback_offset ?? newDuration);
-            setDuration(newDuration);
-            if (!draggingSlider) {
-              setPosition(Math.min(newPosition, newDuration));
-            }
-            setIsLive(msg.mode === 'live' || newDuration <= 0);
-          } else if (msg.type === 'error') {
-            console.error('Device Error:', msg.message);
+        dc.onopen = () => {
+          setStatus('streaming');
+          dc.send('browser handshake test ping');
+        };
+
+        dc.onclose = () => console.log('Data channel closed');
+        dc.onerror = (event: any) => console.error('Data channel error:', event.error || 'unknown');
+
+        dc.onmessage = (event) => {
+          const data = event.data;
+          let blob: Blob | null = null;
+          if (data instanceof ArrayBuffer) {
+            blob = new Blob([data], { type: 'image/jpeg' });
+          } else if (data instanceof Blob) {
+            blob = data;
           }
-        } catch (err) {
-          console.error('Failed to parse dc message', err);
-        }
-      };
 
-      const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.addTransceiver('audio', { direction: 'recvonly' });
+          if (blob) {
+            const nextUrl = URL.createObjectURL(blob);
+            setImageUrl(nextUrl);
 
-      if (RTCRtpReceiver.getCapabilities) {
-        const caps = RTCRtpReceiver.getCapabilities('video');
-        if (caps) {
-          const h264 = caps.codecs.filter(c => c.mimeType === 'video/H264');
-          const rest = caps.codecs.filter(c => c.mimeType !== 'video/H264');
-          if (h264.length) {
-            try {
-              videoTransceiver.setCodecPreferences([...h264, ...rest]);
-            } catch (e) {
-              // Ignore
+            if (lastFrameUrlRef.current) {
+              URL.revokeObjectURL(lastFrameUrlRef.current);
+            }
+            lastFrameUrlRef.current = nextUrl;
+
+            recordJpegStats(blob.size);
+          }
+        };
+      } else {
+        dc = pc.createDataChannel('control', { ordered: true });
+
+        dc.onopen = () => {
+          sendCmd({ cmd: 'timeline' });
+          timelineTimerRef.current = setInterval(() => sendCmd({ cmd: 'timeline' }), 2000);
+        };
+
+        dc.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            if (msg.type === 'timeline') {
+              const newDuration = Number(msg.duration || 0);
+              const newPosition = Number(msg.playback_offset ?? newDuration);
+              setDuration(newDuration);
+              if (!draggingSlider) {
+                setPosition(Math.min(newPosition, newDuration));
+              }
+              setIsLive(msg.mode === 'live' || newDuration <= 0);
+            } else if (msg.type === 'error') {
+              console.error('Device Error:', msg.message);
+            }
+          } catch (err) {
+            console.error('Failed to parse dc message', err);
+          }
+        };
+
+        const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+
+        if (RTCRtpReceiver.getCapabilities) {
+          const caps = RTCRtpReceiver.getCapabilities('video');
+          if (caps) {
+            const h264 = caps.codecs.filter(c => c.mimeType === 'video/H264');
+            const rest = caps.codecs.filter(c => c.mimeType !== 'video/H264');
+            if (h264.length) {
+              try {
+                videoTransceiver.setCodecPreferences([...h264, ...rest]);
+              } catch (e) {
+                // Ignore
+              }
             }
           }
         }
+
+        pc.ontrack = (e) => {
+          if (e.streams && e.streams[0] && videoRef.current) {
+            videoRef.current.srcObject = e.streams[0];
+            setStatus('streaming');
+          }
+        };
       }
 
-      pc.ontrack = (e) => {
-        if (e.streams && e.streams[0] && videoRef.current) {
-          videoRef.current.srcObject = e.streams[0];
-          setStatus('streaming');
-        }
-      };
+      dcRef.current = dc;
 
       pc.onconnectionstatechange = async () => {
         if (pc.connectionState === 'connected') {
@@ -247,8 +475,12 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
       await new Promise<void>(resolve => {
         if (pc.iceGatheringState === 'complete') { resolve(); return; }
+        const timeout = setTimeout(resolve, 10000); // 10s timeout fallback
         pc.onicegatheringstatechange = () => {
-          if (pc.iceGatheringState === 'complete') resolve();
+          if (pc.iceGatheringState === 'complete') {
+            clearTimeout(timeout);
+            resolve();
+          }
         };
       });
 
@@ -259,51 +491,146 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
         return;
       }
 
-      const sessionId = Math.random().toString(36).slice(2, 10);
-      const offerKey = `offer_${sessionId}`;
-      const answerKey = `answer_${sessionId}`;
+      if (signalingMode === 'command') {
+        const rawOfferSdp = pc.localDescription?.sdp || '';
+        const cleanedOfferSdp = optimizeSdp(rawOfferSdp);
+        const offerSdp = cleanedOfferSdp.replaceAll("a=setup:actpass", "a=setup:passive");
+        console.log(`Original SDP offer length: ${rawOfferSdp.length}, Cleaned SDP offer length: ${cleanedOfferSdp.length}`);
+        const offerPayload = JSON.stringify({
+          type: "offer",
+          sdp: offerSdp,
+          turn: relayData ? { username: relayData.username, credential: relayData.password } : null,
+        });
 
-      const payload = JSON.stringify({
-        offer: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
-        turn: relayData
-      });
-
-      setConnectionProgress('SENDING OFFER TO DEVICE...');
-      await vsSet(offerKey, payload);
-
-      setConnectionProgress('WAITING FOR DEVICE ANSWER...');
-      let attempts = 0;
-      const MAX_ATTEMPTS = 30;
-      pollTimerRef.current = setInterval(async () => {
-        attempts++;
-        if (attempts > MAX_ATTEMPTS) {
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          setErrorMessage('Device is not responding, kindly check your device.');
-          setStatus('error');
-          stopStream(true);
-          return;
+        const compressed = await deflateRaw(offerPayload);
+        const b64 = uint8ToBase64(compressed);
+        if (b64.length > 950) {
+          throw new Error(`Compressed offer too large for command payload: ${b64.length} bytes (limit ~1000)`);
         }
 
-        try {
-          const value = await vsGet(answerKey);
-          if (value) {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            const answerSdp = JSON.parse(value);
+        setConnectionProgress('SENDING OFFER TO DEVICE...');
+        const commandId = await sendCmdOffer(b64);
+        if (!commandId) {
+          throw new Error('Failed to retrieve a valid command ID.');
+        }
 
-            if (forceRelay && answerSdp.sdp && !answerSdp.sdp.includes('typ relay')) {
-              setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
+        setConnectionProgress('WAITING FOR DEVICE ANSWER...');
+        let attempts = 0;
+        let answerApplied = false;
+        const MAX_ATTEMPTS = 45; // 90 seconds like the HTML code
+
+        pollTimerRef.current = setInterval(async () => {
+          attempts++;
+          if (attempts > MAX_ATTEMPTS) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            if (!answerApplied) {
+              setErrorMessage('Timed out waiting for device response.');
+              setStatus('error');
+              stopStream(true);
+            }
+            return;
+          }
+
+          try {
+            const cmd = await getCommandStatus(commandId);
+            if (!cmd) return;
+
+            const processAnswer = async (ackdata: string) => {
+              answerApplied = true;
+              const answerSdpStr = await inflateRaw(base64ToUint8(ackdata));
+              let sdpText = '';
+              try {
+                const parsed = JSON.parse(answerSdpStr);
+                sdpText = parsed.sdp || answerSdpStr;
+              } catch (e) {
+                sdpText = answerSdpStr;
+              }
+
+              if (forceRelay && sdpText && !sdpText.includes('typ relay')) {
+                setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
+                setStatus('error');
+                stopStream(true);
+                return false;
+              }
+
+              setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
+              await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdpText }));
+              return true;
+            };
+
+            if (cmd.status === 'failure') {
+              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+              const reason = cmd.ackdata || cmd.error || 'Unknown device failure';
+              setErrorMessage(`Device reported failure: ${reason}`);
               setStatus('error');
               stopStream(true);
               return;
             }
 
-            setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
-            await pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
+            if (cmd.status === 'success') {
+              if (!answerApplied && cmd.ackdata) {
+                await processAnswer(cmd.ackdata);
+              }
+              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+              return;
+            }
+
+            if (!answerApplied && cmd.ackdata) {
+              await processAnswer(cmd.ackdata);
+            }
+          } catch (err) {
+            // Keep polling
           }
-        } catch (err) {
-          // Keep polling
-        }
-      }, 2000);
+        }, 2000);
+
+      } else {
+        // Valuestore signaling
+        const sessionId = Math.random().toString(36).slice(2, 10);
+        const offerKey = `offer_${sessionId}`;
+        const answerKey = `answer_${sessionId}`;
+
+        const payload = JSON.stringify({
+          offer: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
+          turn: relayData
+        });
+
+        setConnectionProgress('SENDING OFFER TO DEVICE...');
+        await vsSet(offerKey, payload);
+
+        setConnectionProgress('WAITING FOR DEVICE ANSWER...');
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30;
+        pollTimerRef.current = setInterval(async () => {
+          attempts++;
+          if (attempts > MAX_ATTEMPTS) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            setErrorMessage('Device is not responding, kindly check your device.');
+            setStatus('error');
+            stopStream(true);
+            return;
+          }
+
+          try {
+            const value = await vsGet(answerKey);
+            if (value) {
+              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+              const answerSdp = JSON.parse(value);
+
+              if (forceRelay && answerSdp.sdp && !answerSdp.sdp.includes('typ relay')) {
+                setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
+                setStatus('error');
+                stopStream(true);
+                return;
+              }
+
+              setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
+              await pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
+            }
+          } catch (err) {
+            // Keep polling
+          }
+        }, 2000);
+      }
 
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to start stream');
@@ -332,6 +659,8 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   }, []);
 
   useEffect(() => {
+    if (signalingMode === 'command') return;
+
     if (showStats && status === 'streaming' && pcRef.current) {
       const interval = setInterval(async () => {
         try {
@@ -369,9 +698,19 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [showStats, status, networkStats]);
+  }, [showStats, status, networkStats, config?.config?.signalingMode]);
 
   const takeSnapshot = () => {
+    if (signalingMode === 'command') {
+      if (imageUrl) {
+        const a = document.createElement('a');
+        a.href = imageUrl;
+        a.download = `snapshot-${new Date().toISOString().replace(/:/g, '-')}.jpg`;
+        a.click();
+      }
+      return;
+    }
+
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth || 1280;
@@ -446,20 +785,31 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
         {/* Video Area */}
         <div className="flex-1 relative flex items-center justify-center min-h-0">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={isMuted}
-            className={`w-full h-full object-contain ${status === 'streaming' ? 'opacity-100' : 'opacity-0'}`}
-          />
+          {signalingMode === 'command' ? (
+            <img
+              src={imageUrl || undefined}
+              alt="Live feed"
+              className={`w-full h-full object-contain ${status === 'streaming' ? 'opacity-100' : 'opacity-0'}`}
+              style={{ transform: 'scaleY(-1)' }}
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted={isMuted}
+              className={`w-full h-full object-contain ${status === 'streaming' ? 'opacity-100' : 'opacity-0'}`}
+            />
+          )}
 
           {status === 'streaming' && showStats && (
             <div className="absolute top-3 left-3 z-10 bg-black/60 p-3 rounded-lg backdrop-blur-sm border border-white/10 flex flex-col gap-1 text-[10px] text-white/90 font-mono shadow-lg">
               <div className="text-white/50 mb-1 font-sans text-[9px] uppercase tracking-wider">Network Stats</div>
               <div className="flex justify-between gap-4"><span>Bitrate:</span> <span>{networkStats.bitrate} kbps</span></div>
               <div className="flex justify-between gap-4"><span>Framerate:</span> <span>{networkStats.fps} fps</span></div>
-              <div className="flex justify-between gap-4"><span>Packet Loss:</span> <span>{networkStats.packetLoss}%</span></div>
+              {signalingMode !== 'command' && (
+                <div className="flex justify-between gap-4"><span>Packet Loss:</span> <span>{networkStats.packetLoss}%</span></div>
+              )}
               {networkStats.resolution !== '0x0' && networkStats.resolution !== '' && (
                 <div className="flex justify-between gap-4"><span>Resolution:</span> <span>{networkStats.resolution}</span></div>
               )}

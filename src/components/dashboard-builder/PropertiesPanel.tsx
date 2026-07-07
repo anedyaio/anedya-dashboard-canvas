@@ -195,6 +195,25 @@ export default function PropertiesPanel() {
               </p>
             </div>
             <div className="space-y-2">
+              <Label>Signaling Mode</Label>
+              <Select
+                value={draftConfig.signalingMode || 'valuestore'}
+                onValueChange={(val) => handleConfigChange({ signalingMode: val })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Valuestore" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="valuestore">Valuestore</SelectItem>
+                  <SelectItem value="command">Command</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Select mechanism for WebRTC handshake signaling.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label>TURN Port</Label>
               <Input
                 type="number"
