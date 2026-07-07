@@ -4,20 +4,19 @@ import {
   Settings,
   LogOut,
   Wifi,
-  Loader2,
   Users,
   LayoutDashboard,
   Home as HomeIcon,
   Shield,
   Server,
-  LayoutTemplate
+  LayoutTemplate,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { useDevices } from '@/hooks/useDevices';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useRecentDevices } from '@/hooks/useRecentDevices';
 
 interface SidebarProps {
   open: boolean;
@@ -28,7 +27,9 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, isAdmin, user } = useAuth();
-  const { data: devices = [], isLoading: devicesLoading } = useDevices();
+
+  // ⚡ No API call — purely from localStorage. Instant, scales to any fleet size.
+  const { recentDevices } = useRecentDevices();
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -37,7 +38,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
   const handleLogout = async () => {
     await logout();
-    // ProtectedRoute will redirect to /login when user becomes null
   };
 
   const settingsMenuItem = { icon: Settings, label: 'Settings', path: '/settings', show: true };
@@ -51,13 +51,23 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
+      {/* Logo / App header */}
       <div className="flex items-center gap-3 px-2 py-4 border-b border-border">
         <div className="w-10 h-10 flex items-center justify-center shrink-0">
-          <img src="/favicon.png" alt="Logo" className="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(14,165,233,0.3)]" />
+          <img
+            src="/favicon.png"
+            alt="Logo"
+            className="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(14,165,233,0.3)]"
+          />
         </div>
         <div className="min-w-0">
-          <h2 className="font-semibold truncate">{import.meta.env.VITE_APP_NAME || "Anedya Dashboard Canvas"}</h2>
-          <p className="text-xs text-muted-foreground truncate" title={user?.email || 'User'}>
+          <h2 className="font-semibold truncate">
+            {import.meta.env.VITE_APP_NAME || 'Anedya Dashboard Canvas'}
+          </h2>
+          <p
+            className="text-xs text-muted-foreground truncate"
+            title={user?.email || 'User'}
+          >
             {user?.email || 'User'}
             {isAdmin && <span className="ml-1 text-primary">(Admin)</span>}
           </p>
@@ -66,12 +76,14 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
       <nav className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-1 px-2">
-          {/* Home Link */}
+
+          {/* Home */}
           <Button
-            variant={location.pathname === '/home' || location.pathname === '/' ? "secondary" : "ghost"}
+            variant={location.pathname === '/home' || location.pathname === '/' ? 'secondary' : 'ghost'}
             className={cn(
-              "w-full justify-start gap-3 h-11",
-              (location.pathname === '/home' || location.pathname === '/') && "bg-primary/10 text-primary hover:bg-primary/15"
+              'w-full justify-start gap-3 h-11',
+              (location.pathname === '/home' || location.pathname === '/') &&
+              'bg-primary/10 text-primary hover:bg-primary/15'
             )}
             onClick={() => handleNavigation('/home')}
           >
@@ -79,55 +91,69 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             <span className="truncate">Home</span>
           </Button>
 
-          {/* Devices Header */}
+          {/* ── Devices section ── */}
           <div className="pt-4 pb-1 px-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Devices
             </h3>
           </div>
 
-          {devicesLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : devices.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-3 py-2">
-              No devices assigned to you.
+          {/* Last 5 recently accessed devices — loaded from localStorage, zero API cost */}
+          {recentDevices.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-3 py-1.5">
+              No recently viewed devices.
             </p>
           ) : (
-            <div className="max-h-[312px] overflow-y-auto pr-2 custom-scrollbar">
-              <div className="space-y-1">
-                {devices.map((device) => {
-                  const isActive = location.pathname === device.path;
-
-                  return (
-                    <Button
-                      key={device.id}
-                      variant={isActive ? "secondary" : "ghost"}
-                      className={cn(
-                        "w-full justify-start gap-3 h-11 pl-6",
-                        isActive && "bg-primary/10 text-primary hover:bg-primary/15"
-                      )}
-                      onClick={() => handleNavigation(device.path)}
-                    >
-                      <Wifi className="h-[18px] w-[18px] shrink-0" />
-                      <span className="truncate">{device.title}</span>
-                    </Button>
-                  );
-                })}
-              </div>
+            <div className="space-y-0.5">
+              {recentDevices.map((device) => {
+                const isActive = location.pathname === device.path;
+                return (
+                  <Button
+                    key={device.id}
+                    variant={isActive ? 'secondary' : 'ghost'}
+                    className={cn(
+                      'w-full justify-start gap-2.5 h-9 pl-6 text-sm',
+                      isActive && 'bg-primary/10 text-primary hover:bg-primary/15'
+                    )}
+                    onClick={() => handleNavigation(device.path)}
+                    title={device.title}
+                  >
+                    <Wifi className="h-[15px] w-[15px] shrink-0 opacity-70" />
+                    <span className="truncate">{device.title}</span>
+                  </Button>
+                );
+              })}
             </div>
           )}
+
+          {/* View All Devices → */}
+          <Button
+            variant={location.pathname === '/devices' ? 'secondary' : 'ghost'}
+            className={cn(
+              'w-full justify-between gap-2 h-9 pl-6 text-sm',
+              location.pathname === '/devices' &&
+              'bg-primary/10 text-primary hover:bg-primary/15'
+            )}
+            onClick={() => handleNavigation('/devices')}
+          >
+            <span className="text-muted-foreground group-hover:text-foreground">
+              View All Devices
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          </Button>
+
         </div>
 
         <div className="my-4 border-t border-border" />
 
+        {/* Settings */}
         <div className="space-y-1 px-2">
           <Button
-            variant={location.pathname === settingsMenuItem.path ? "secondary" : "ghost"}
+            variant={location.pathname === settingsMenuItem.path ? 'secondary' : 'ghost'}
             className={cn(
-              "w-full justify-start gap-3 h-11",
-              location.pathname === settingsMenuItem.path && "bg-primary/10 text-primary hover:bg-primary/15"
+              'w-full justify-start gap-3 h-11',
+              location.pathname === settingsMenuItem.path &&
+              'bg-primary/10 text-primary hover:bg-primary/15'
             )}
             onClick={() => handleNavigation(settingsMenuItem.path)}
           >
@@ -136,29 +162,26 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           </Button>
         </div>
 
-
+        {/* Admin section */}
         {adminMenuItems.length > 0 && (
           <>
-            {/* Admin Header */}
             <div className="my-4 border-t border-border" />
-            <div className="pt-4 pb-1 px-3">
+            <div className="pt-1 pb-1 px-5">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Admin
               </h3>
             </div>
-
             <div className="space-y-1 px-2">
               {adminMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
-
                 return (
                   <Button
                     key={item.path}
-                    variant={isActive ? "secondary" : "ghost"}
+                    variant={isActive ? 'secondary' : 'ghost'}
                     className={cn(
-                      "w-full justify-start gap-3 h-11",
-                      isActive && "bg-primary/10 text-primary hover:bg-primary/15"
+                      'w-full justify-start gap-3 h-11',
+                      isActive && 'bg-primary/10 text-primary hover:bg-primary/15'
                     )}
                     onClick={() => handleNavigation(item.path)}
                   >
@@ -172,6 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
         )}
       </nav>
 
+      {/* Logout */}
       <div className="p-2 border-t border-border">
         <Button
           variant="ghost"

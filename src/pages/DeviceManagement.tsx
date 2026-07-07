@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Wifi, Plus, Pencil, Trash2, Check, X, Loader2, Search, LayoutTemplate } from "lucide-react";
 import { useDevices, useAddDevice, useUpdateDevice, useDeleteDevice, Device } from "@/hooks/useDevices";
+import { useRecentDevices } from "@/hooks/useRecentDevices";
 import { toast } from "sonner";
 
 const DeviceManagement = () => {
@@ -20,6 +21,7 @@ const DeviceManagement = () => {
   const addDevice = useAddDevice();
   const updateDevice = useUpdateDevice();
   const deleteDevice = useDeleteDevice();
+  const { removeRecentDevice } = useRecentDevices();
 
   const filteredDevices = devices.filter((device) => 
     device.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -87,6 +89,7 @@ const DeviceManagement = () => {
 
     try {
       await deleteDevice.mutateAsync(device.id);
+      removeRecentDevice(device.id); // evict from sidebar recents immediately
       toast.success(`Device "${device.title}" deleted.`);
     } catch (err: any) {
       toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);

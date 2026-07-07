@@ -253,13 +253,17 @@ export function HistoricalTrendWidget({
 
   const handleExport = () => {
     if (!data.length) return;
-    const headers = ["Date-Time (ISO)", `${config.title} (${config.config.unit || ""})`];
+    const headers = ["Date-Time (ISO)", `${config.title} (${config.config.unit || ""})` ];
     const csvRows = [headers.join(",")];
 
-    const sortedData = [...data].sort((a, b) => a.timestamp - b.timestamp);
+    const sortedData = [...data]
+      .sort((a, b) => a.timestamp - b.timestamp)
+      // Skip synthetic gap-interpolation points that have no real value
+      .filter(entry => entry[deviceKey] !== null && entry[deviceKey] !== undefined);
+
     sortedData.forEach(entry => {
       const isoTime = `"${entry.time.replace(/"/g, '""')}"`;
-      csvRows.push(`${isoTime},${entry[deviceKey] ?? ""}`);
+      csvRows.push(`${isoTime},${entry[deviceKey]}`);
     });
 
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
