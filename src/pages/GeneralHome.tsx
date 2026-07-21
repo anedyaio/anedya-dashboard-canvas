@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 
 export default function GeneralHome() {
   const { data: devices = [], isLoading: isDevicesLoading } = useDevices();
@@ -22,6 +23,7 @@ export default function GeneralHome() {
   const [refreshInterval, setRefreshInterval] = useState<number>(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { settings: dashSettings } = useDashboardSettings();
 
   const fetchHomeTemplate = async (showLoader = true) => {
     if (showLoader) {
@@ -162,6 +164,7 @@ export default function GeneralHome() {
             schema={templateSchema}
             nodeId=""
             pollIntervalMs={refreshInterval}
+            allowDrag={dashSettings.allowDrag}
           />
         </div>
       </DashboardLayout>

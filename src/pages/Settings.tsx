@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { Palette } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Palette, Move } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
+import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 
 const themeOptions = [
   { id: "classic", label: "Classic", color: "bg-slate-100", border: "border-slate-300" },
@@ -23,6 +25,7 @@ function isThemeOption(value: string): value is ThemeOptionId {
 
 const Settings = () => {
   const { theme, setTheme } = useTheme();
+  const { settings: dashSettings, update: updateDashSettings } = useDashboardSettings();
 
   return (
     <DashboardLayout>
@@ -36,6 +39,39 @@ const Settings = () => {
 
         <Separator className="my-6" />
 
+        {/* ── Dashboard Interaction ─────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Move className="h-5 w-5" />
+              Dashboard Interaction
+            </CardTitle>
+            <CardDescription>
+              Control how you can interact with dashboard widgets in view mode.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="allowDrag" className="text-base font-medium cursor-pointer">
+                  Enable Widget Drag &amp; Drop
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, widgets on the Home Dashboard and Device Dashboards can be
+                  dragged to rearrange their positions. Changes are not saved — they reset on
+                  page reload.
+                </p>
+              </div>
+              <Switch
+                id="allowDrag"
+                checked={dashSettings.allowDrag}
+                onCheckedChange={(checked) => updateDashSettings({ allowDrag: checked })}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Theme Configuration ───────────────────────────────── */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

@@ -38,22 +38,36 @@ function SectionView({
   widgets,
   nodeId,
   pollIntervalMs,
+  allowDrag = false,
 }: {
   section: Section;
   sectionLayout: Layout[];
   widgets: Record<string, WidgetConfig>;
   nodeId: string;
   pollIntervalMs: number;
+  allowDrag?: boolean;
 }) {
   const { ref, width } = useMeasure();
 
   const normalizedLayout = sectionLayout.map((item) => {
     const widgetConfig = widgets[item.i];
     const constraints = widgetConfig ? WIDGET_SIZE_CONSTRAINTS[widgetConfig.type] : null;
-    if (!constraints) return item;
+
+    // Strip per-item drag/resize overrides — these would bypass the grid-level
+    // isDraggable/isResizable props. When allowDrag is false we also set
+    // static:true which is the most reliable ReactGridLayout lock mechanism.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { isDraggable: _d, isResizable: _r, ...itemWithoutOverrides } = item as any;
+
+    const base = {
+      ...itemWithoutOverrides,
+      static: !allowDrag,   // locks both drag AND resize at the item level
+    };
+
+    if (!constraints) return base;
 
     return {
-      ...item,
+      ...base,
       w: Math.max(constraints.minW, Math.min(item.w || constraints.defaultW, constraints.maxW)),
       h: Math.max(constraints.minH, Math.min(item.h || constraints.defaultH, constraints.maxH)),
       minW: constraints.minW,
@@ -86,7 +100,7 @@ function SectionView({
           layout={normalizedLayout}
           cols={12}
           rowHeight={40}
-          isDraggable={false}
+          isDraggable={allowDrag}
           isResizable={false}
           compactType="vertical"
         >
@@ -122,9 +136,11 @@ interface DynamicDashboardProps {
   schema: any;
   nodeId: string;
   pollIntervalMs?: number;
+  /** When true, widgets on the dashboard can be dragged by the user (view-only repositioning). */
+  allowDrag?: boolean;
 }
 
-export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0 }: DynamicDashboardProps) {
+export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0, allowDrag = false }: DynamicDashboardProps) {
   if (!schema || !schema.layout || !schema.widgets || !Array.isArray(schema.layout)) {
     return (
       <div className="flex items-center justify-center h-64 bg-muted/30 border border-border rounded-lg text-muted-foreground">
@@ -159,6 +175,7 @@ export function DynamicDashboard({ schema, nodeId, pollIntervalMs = 0 }: Dynamic
             widgets={widgets}
             nodeId={nodeId}
             pollIntervalMs={pollIntervalMs}
+            allowDrag={allowDrag}
           />
         );
       })}
