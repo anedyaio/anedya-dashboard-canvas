@@ -28,8 +28,7 @@ async function deflateRaw(str: string): Promise<Uint8Array> {
   const encoded = new TextEncoder().encode(str);
   const cs = new (window as any).CompressionStream("deflate-raw");
   const writer = cs.writable.getWriter();
-  await writer.write(encoded);
-  await writer.close();
+  const writePromise = writer.write(encoded).then(() => writer.close());
   const chunks: Uint8Array[] = [];
   const reader = cs.readable.getReader();
   while (true) {
@@ -37,6 +36,7 @@ async function deflateRaw(str: string): Promise<Uint8Array> {
     if (done) break;
     chunks.push(value);
   }
+  await writePromise;
   const total = chunks.reduce((n, c) => n + c.length, 0);
   const buf = new Uint8Array(total);
   let offset = 0;
@@ -67,8 +67,7 @@ function base64ToUint8(b64: string): Uint8Array {
 async function inflateRaw(buf: Uint8Array): Promise<string> {
   const ds = new (window as any).DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
-  await writer.write(buf);
-  await writer.close();
+  const writePromise = writer.write(buf).then(() => writer.close());
   const chunks: Uint8Array[] = [];
   const reader = ds.readable.getReader();
   while (true) {
@@ -76,6 +75,7 @@ async function inflateRaw(buf: Uint8Array): Promise<string> {
     if (done) break;
     chunks.push(value);
   }
+  await writePromise;
   const total = chunks.reduce((n, c) => n + c.length, 0);
   const out = new Uint8Array(total);
   let offset = 0;
@@ -131,6 +131,13 @@ function optimizeSdp(sdp: string): string {
 
 export default function CameraViewerWidget({ config, nodeId, isEditMode }: CameraViewerWidgetProps) {
   const signalingMode = config?.config?.signalingMode || 'valuestore';
+  // streamMode is only meaningful for command signaling.
+  // 'datachannel' = JPEG frames via RTCDataChannel (ESP32-CAM style)
+  // 'video'       = H.264 media track (requires firmware support)
+  const streamMode: 'datachannel' | 'video' =
+    signalingMode === 'command'
+      ? (config?.config?.streamMode || 'datachannel')
+      : 'video';
   const [status, setStatus] = useState<'ready' | 'connecting' | 'streaming' | 'error'>('ready');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -213,8 +220,13 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       body: JSON.stringify({ namespace: { scope: 'node', id: nodeId }, key, value, type: 'string' }),
     });
     if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`vsSet failed: ${resp.status} - ${text}`);
+      let message = `Failed to signal device (HTTP ${resp.status})`;
+      try {
+        const json = await resp.json();
+        if (json.error) message = json.error;
+        else if (json.reasonCode) message = json.reasonCode;
+      } catch (_) { /* non-JSON body, keep generic message */ }
+      throw new Error(message);
     }
   };
 
@@ -245,8 +257,13 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       }),
     });
     if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Command send failed: ${resp.status} - ${text}`);
+      let message = `Failed to send command (HTTP ${resp.status})`;
+      try {
+        const json = await resp.json();
+        if (json.error) message = json.error;
+        else if (json.reasonCode) message = json.reasonCode;
+      } catch (_) { /* non-JSON body */ }
+      throw new Error(message);
     }
     const json = await resp.json();
     return json.commandId || json.id || json.commandID;
@@ -354,10 +371,16 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       const pc = new RTCPeerConnection(iceConfig);
       pcRef.current = pc;
 
-      let dc: RTCDataChannel;
-      if (signalingMode === 'command') {
-        dc = pc.createDataChannel('jpeg-test', { ordered: false, maxRetransmits: 0 });
+      // ── Data channel / media-track setup ──────────────────────────────────
+      // command + datachannel → JPEG frames via unordered RTCDataChannel
+      // command + video       → H.264 media track via recvonly transceiver
+      // valuestore (always)   → H.264 media track via recvonly transceiver
+
+      if (signalingMode === 'command' && streamMode === 'datachannel') {
+        // ── JPEG-over-DataChannel mode (ESP32-CAM) ──
+        const dc = pc.createDataChannel('jpeg-test', { ordered: false, maxRetransmits: 0 });
         dc.binaryType = 'arraybuffer';
+        dcRef.current = dc;
 
         dc.onopen = () => {
           setStatus('streaming');
@@ -375,21 +398,45 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
           } else if (data instanceof Blob) {
             blob = data;
           }
-
           if (blob) {
             const nextUrl = URL.createObjectURL(blob);
             setImageUrl(nextUrl);
-
             if (lastFrameUrlRef.current) {
               URL.revokeObjectURL(lastFrameUrlRef.current);
             }
             lastFrameUrlRef.current = nextUrl;
-
             recordJpegStats(blob.size);
           }
         };
+
+      } else if (signalingMode === 'command' && streamMode === 'video') {
+        // ── Video-track mode for Command signaling ──
+        // No data channel needed; media arrives as a proper MediaStream track.
+        const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+
+        if (RTCRtpReceiver.getCapabilities) {
+          const caps = RTCRtpReceiver.getCapabilities('video');
+          if (caps) {
+            const h264 = caps.codecs.filter(c => c.mimeType === 'video/H264');
+            const rest = caps.codecs.filter(c => c.mimeType !== 'video/H264');
+            if (h264.length) {
+              try { videoTransceiver.setCodecPreferences([...h264, ...rest]); } catch (_) { /* ignore */ }
+            }
+          }
+        }
+
+        pc.ontrack = (e) => {
+          if (e.streams && e.streams[0] && videoRef.current) {
+            videoRef.current.srcObject = e.streams[0];
+            setStatus('streaming');
+          }
+        };
+
       } else {
-        dc = pc.createDataChannel('control', { ordered: true });
+        // ── Valuestore signaling (legacy) — DVR / control channel + media tracks ──
+        const dc = pc.createDataChannel('control', { ordered: true });
+        dcRef.current = dc;
 
         dc.onopen = () => {
           sendCmd({ cmd: 'timeline' });
@@ -424,11 +471,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
             const h264 = caps.codecs.filter(c => c.mimeType === 'video/H264');
             const rest = caps.codecs.filter(c => c.mimeType !== 'video/H264');
             if (h264.length) {
-              try {
-                videoTransceiver.setCodecPreferences([...h264, ...rest]);
-              } catch (e) {
-                // Ignore
-              }
+              try { videoTransceiver.setCodecPreferences([...h264, ...rest]); } catch (_) { /* ignore */ }
             }
           }
         }
@@ -440,8 +483,6 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
           }
         };
       }
-
-      dcRef.current = dc;
 
       pc.onconnectionstatechange = async () => {
         if (pc.connectionState === 'connected') {
@@ -659,7 +700,8 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   }, []);
 
   useEffect(() => {
-    if (signalingMode === 'command') return;
+    // JPEG data-channel mode reports stats via recordJpegStats(); skip WebRTC inbound-rtp polling.
+    if (signalingMode === 'command' && streamMode === 'datachannel') return;
 
     if (showStats && status === 'streaming' && pcRef.current) {
       const interval = setInterval(async () => {
@@ -698,10 +740,11 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [showStats, status, networkStats, config?.config?.signalingMode]);
+  }, [showStats, status, networkStats, signalingMode, streamMode]);
 
   const takeSnapshot = () => {
-    if (signalingMode === 'command') {
+    if (signalingMode === 'command' && streamMode === 'datachannel') {
+      // Snapshot from latest JPEG blob URL
       if (imageUrl) {
         const a = document.createElement('a');
         a.href = imageUrl;
@@ -711,6 +754,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       return;
     }
 
+    // Snapshot from <video> element (video track mode or valuestore)
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth || 1280;
@@ -785,14 +829,18 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
         {/* Video Area */}
         <div className="flex-1 relative flex items-center justify-center min-h-0">
-          {signalingMode === 'command' ? (
+          {signalingMode === 'command' && streamMode === 'datachannel' ? (
+            // JPEG frames delivered via WebRTC DataChannel — rendered into <img>.
+            // alt="" prevents the browser rendering alt-text (fixes the upside-down text glitch).
             <img
               src={imageUrl || undefined}
-              alt="Live feed"
+              alt=""
+              aria-hidden="true"
               className={`w-full h-full object-contain ${status === 'streaming' ? 'opacity-100' : 'opacity-0'}`}
               style={{ transform: 'scaleY(-1)' }}
             />
           ) : (
+            // Video track (command+video mode or valuestore mode) — rendered into <video>
             <video
               ref={videoRef}
               autoPlay
@@ -807,7 +855,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
               <div className="text-white/50 mb-1 font-sans text-[9px] uppercase tracking-wider">Network Stats</div>
               <div className="flex justify-between gap-4"><span>Bitrate:</span> <span>{networkStats.bitrate} kbps</span></div>
               <div className="flex justify-between gap-4"><span>Framerate:</span> <span>{networkStats.fps} fps</span></div>
-              {signalingMode !== 'command' && (
+              {!(signalingMode === 'command' && streamMode === 'datachannel') && (
                 <div className="flex justify-between gap-4"><span>Packet Loss:</span> <span>{networkStats.packetLoss}%</span></div>
               )}
               {networkStats.resolution !== '0x0' && networkStats.resolution !== '' && (
@@ -862,7 +910,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
         </div>
 
         {/* DVR Controls */}
-        {status === 'streaming' && (
+        {status === 'streaming' && config?.config?.showControls !== false && (
           <div className="p-3 bg-black/80 border-t border-white/10 backdrop-blur-md">
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between text-[10px] text-white/60 font-mono">
@@ -883,15 +931,18 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
                   </Button>
                 )}
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 shrink-0"
-                  onClick={() => setIsMuted(!isMuted)}
-                  title={isMuted ? "Unmute" : "Mute"}
-                >
-                  {isMuted ? <VolumeX className="w-4 h-4 fill-current" /> : <Volume2 className="w-4 h-4 fill-current" />}
-                </Button>
+                {/* Mute only applies to video track modes, not JPEG data channel, and when enabled in config */}
+                {!(signalingMode === 'command' && streamMode === 'datachannel') && config?.config?.showMuteBtn !== false && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 shrink-0"
+                    onClick={() => setIsMuted(!isMuted)}
+                    title={isMuted ? "Unmute" : "Mute"}
+                  >
+                    {isMuted ? <VolumeX className="w-4 h-4 fill-current" /> : <Volume2 className="w-4 h-4 fill-current" />}
+                  </Button>
+                )}
 
                 {config?.config?.showSnapshotBtn !== false && (
                   <Button
@@ -905,15 +956,17 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
                   </Button>
                 )}
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 shrink-0"
-                  onClick={stopStream}
-                  title="Stop Stream"
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                </Button>
+                {config?.config?.showStopBtn !== false && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 shrink-0"
+                    onClick={stopStream}
+                    title="Stop Stream"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                  </Button>
+                )}
 
                 <Slider
                   disabled={duration <= 0}
