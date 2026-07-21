@@ -213,6 +213,28 @@ export default function PropertiesPanel() {
               </p>
             </div>
 
+            {(draftConfig.signalingMode || 'valuestore') === 'command' && (
+              <div className="space-y-2">
+                <Label>Stream Mode</Label>
+                <Select
+                  value={draftConfig.streamMode || 'datachannel'}
+                  onValueChange={(val) => handleConfigChange({ streamMode: val })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="DataChannel (JPEG)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="datachannel">DataChannel (JPEG frames)</SelectItem>
+                    <SelectItem value="video">Video Track (H.264)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  DataChannel: JPEG frames streamed over WebRTC data channel (ESP32-CAM default).<br />
+                  Video Track: H.264 media stream via recvonly transceiver (requires firmware support).
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>TURN Port</Label>
               <Input
@@ -226,6 +248,36 @@ export default function PropertiesPanel() {
 
             <div className="space-y-3 pt-2 border-t text-sm">
               <Label>Display Options</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showControls"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showControls !== false}
+                  onChange={(e) => handleConfigChange({ showControls: e.target.checked })}
+                />
+                <Label htmlFor="showControls" className="font-normal cursor-pointer text-sm">Show Controls Bar</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showStopBtn"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showStopBtn !== false}
+                  onChange={(e) => handleConfigChange({ showStopBtn: e.target.checked })}
+                />
+                <Label htmlFor="showStopBtn" className="font-normal cursor-pointer text-sm">Show Stop Button</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showMuteBtn"
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                  checked={draftConfig.showMuteBtn !== false}
+                  onChange={(e) => handleConfigChange({ showMuteBtn: e.target.checked })}
+                />
+                <Label htmlFor="showMuteBtn" className="font-normal cursor-pointer text-sm">Show Mute Button</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
