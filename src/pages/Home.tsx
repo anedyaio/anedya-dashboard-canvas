@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { DynamicDashboard } from "@/components/dashboard-builder/DynamicDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useIoTData } from "@/hooks/useIoTData";
+import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 
 interface HomeProps {
   title: string;
@@ -41,6 +42,7 @@ const Home: React.FC<HomeProps> = ({
 }) => {
   const [refreshInterval, setRefreshInterval] = React.useState<number>(0);
   const [isSpinning, setIsSpinning] = React.useState(false);
+  const { settings: dashSettings } = useDashboardSettings();
 
   const [dashboardSchema, setDashboardSchema] = React.useState<any>(null);
   React.useEffect(() => {
@@ -434,6 +436,7 @@ const Home: React.FC<HomeProps> = ({
             schema={dashboardSchema}
             nodeId={nodeId}
             pollIntervalMs={refreshInterval > 0 ? refreshInterval : pollIntervalMs}
+            allowDrag={dashSettings.allowDrag}
           />
         ) : (
          
