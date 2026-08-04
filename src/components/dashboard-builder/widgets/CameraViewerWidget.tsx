@@ -348,18 +348,16 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
     try {
       const relayData = await fetchTurnCredentials();
       const turnPort = config?.config?.turnPort || 3478;
-
       const iceServers: RTCIceServer[] = [
-        { urls: `stun:${relayData.endpoint}:${turnPort}` }
+        {
+          urls: [
+            `stun:${relayData.endpoint}:${turnPort}`,
+            `turn:${relayData.endpoint}:${turnPort}`
+          ],
+          username: relayData.username,
+          credential: relayData.password
+        }
       ];
-      if (!forceRelay) {
-        iceServers.push({ urls: 'stun:stun.l.google.com:19302' });
-      }
-      iceServers.push({
-        urls: `turn:${relayData.endpoint}:${turnPort}`,
-        username: relayData.username,
-        credential: relayData.password
-      });
 
       const iceConfig = {
         iceTransportPolicy: forceRelay ? 'relay' : 'all' as RTCIceTransportPolicy,
@@ -463,11 +461,33 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
       await new Promise<void>(resolve => {
         if (pc.iceGatheringState === 'complete') { resolve(); return; }
-        const timeout = setTimeout(resolve, 10000); // 10s timeout fallback
+        let isDone = false;
+        const done = () => {
+          if (!isDone) {
+            isDone = true;
+            resolve();
+          }
+        };
+
+        const timeout = setTimeout(done, 1500); // 1.5s max cap
+
+        pc.onicecandidate = (event) => {
+          if (!event.candidate) {
+            clearTimeout(timeout);
+            done();
+          } else if (event.candidate.candidate.includes('typ relay')) {
+            // As soon as relay candidate is gathered, resolve after small 100ms buffer
+            setTimeout(() => {
+              clearTimeout(timeout);
+              done();
+            }, 100);
+          }
+        };
+
         pc.onicegatheringstatechange = () => {
           if (pc.iceGatheringState === 'complete') {
             clearTimeout(timeout);
-            resolve();
+            done();
           }
         };
       });
