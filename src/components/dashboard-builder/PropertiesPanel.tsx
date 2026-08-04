@@ -213,6 +213,25 @@ export default function PropertiesPanel() {
                 Video Track: H.264 media stream via recvonly transceiver (requires firmware support).
               </p>
             </div>
+            <div className="space-y-2">
+              <Label>Payload Compression</Label>
+              <Select
+                value={draftConfig.compressionMode || 'zstd_dict'}
+                onValueChange={(val) => handleConfigChange({ compressionMode: val })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Zstandard + Dict (New Pi Peer)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zstd_dict">Zstandard + Dict (New Pi Peer)</SelectItem>
+                  <SelectItem value="deflate_raw">Deflate Raw (Legacy)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Zstandard + Dict: zstd compression with trained dictionary (Raspberry Pi default).<br />
+                Deflate Raw: un-dictionary stream compression.
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label>TURN Port</Label>

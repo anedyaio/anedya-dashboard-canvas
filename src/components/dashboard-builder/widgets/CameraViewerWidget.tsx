@@ -4,6 +4,7 @@ import { WidgetConfig } from '../../../store/useBuilderStore';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Play, Square, Radio, Loader2, AlertCircle, Volume2, VolumeX, Camera, Maximize, Minimize, Info, Aperture } from 'lucide-react';
+import { compressSdpZstd, decompressSdpZstd } from '@/utils/zstdSignaling';
 
 interface CameraViewerWidgetProps {
   config: WidgetConfig;
@@ -133,6 +134,9 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   // 'datachannel' = JPEG frames via RTCDataChannel (ESP32-CAM style)
   // 'video'       = H.264 media track (requires firmware support)
   const streamMode: 'datachannel' | 'video' = config?.config?.streamMode || 'datachannel';
+  // 'zstd_dict' = Zstandard compression with trained dictionary (new Raspberry Pi peer default)
+  // 'deflate_raw' = Deflate stream compression (legacy default)
+  const compressionMode: 'zstd_dict' | 'deflate_raw' = config?.config?.compressionMode || 'zstd_dict';
   const [status, setStatus] = useState<'ready' | 'connecting' | 'streaming' | 'error'>('ready');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -243,6 +247,21 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
     return await resp.json();
   };
 
+  const fetchNodeHealth = async (nodeIdStr: string) => {
+    const resp = await fetch(`${ANEDYA_API_BASE}/health/status`, {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify({
+        nodes: [nodeIdStr],
+        lastContactThreshold: 90,
+      }),
+    });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    if (json.success === false) return null;
+    return json.data?.[nodeIdStr] || null;
+  };
+
   const fetchTurnCredentials = async () => {
     const resp = await fetch(`${ANEDYA_API_BASE}/relay/create`, {
       method: 'POST',
@@ -308,6 +327,22 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
     setStatus('connecting');
     setErrorMessage('');
+
+    setConnectionProgress('CHECKING DEVICE STATUS...');
+    try {
+      const healthInfo = await fetchNodeHealth(nodeId);
+      if (healthInfo && !healthInfo.online) {
+        const lastTime = healthInfo.lastHeartbeat
+          ? new Date(healthInfo.lastHeartbeat * 1000).toLocaleString()
+          : 'never';
+        setErrorMessage(`Device is offline (last heartbeat: ${lastTime})`);
+        setStatus('error');
+        return;
+      }
+    } catch (_) {
+      // Continue if health API fails
+    }
+
     setConnectionProgress('FETCHING RELAY CREDENTIALS...');
 
     try {
@@ -444,20 +479,28 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
         return;
       }
 
-      const rawOfferSdp = pc.localDescription?.sdp || '';
-      const cleanedOfferSdp = optimizeSdp(rawOfferSdp);
-      const offerSdp = cleanedOfferSdp.replaceAll("a=setup:actpass", "a=setup:passive");
-      console.log(`Original SDP offer length: ${rawOfferSdp.length}, Cleaned SDP offer length: ${cleanedOfferSdp.length}`);
-      const offerPayload = JSON.stringify({
-        type: "offer",
-        sdp: offerSdp,
-        turn: relayData ? { username: relayData.username, credential: relayData.password } : null,
-      });
+      let b64 = '';
+      if (compressionMode === 'zstd_dict') {
+        const offerPayload = JSON.stringify({
+          offer: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
+          turn: relayData,
+        });
+        b64 = await compressSdpZstd(offerPayload);
+      } else {
+        const rawOfferSdp = pc.localDescription?.sdp || '';
+        const cleanedOfferSdp = optimizeSdp(rawOfferSdp);
+        const offerSdp = cleanedOfferSdp.replaceAll("a=setup:actpass", "a=setup:passive");
+        const offerPayload = JSON.stringify({
+          type: "offer",
+          sdp: offerSdp,
+          turn: relayData,
+        });
+        const compressed = await deflateRaw(offerPayload);
+        b64 = uint8ToBase64(compressed);
+      }
 
-      const compressed = await deflateRaw(offerPayload);
-      const b64 = uint8ToBase64(compressed);
-      if (b64.length > 950) {
-        throw new Error(`Compressed offer too large for command payload: ${b64.length} bytes (limit ~1000)`);
+      if (b64.length > 980) {
+        throw new Error(`Compressed offer payload too large: ${b64.length} bytes (limit ~1000)`);
       }
 
       setConnectionProgress('SENDING OFFER TO DEVICE...');
@@ -489,13 +532,29 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
           const processAnswer = async (ackdata: string) => {
             answerApplied = true;
-            const answerSdpStr = await inflateRaw(base64ToUint8(ackdata));
             let sdpText = '';
-            try {
-              const parsed = JSON.parse(answerSdpStr);
-              sdpText = parsed.sdp || answerSdpStr;
-            } catch (e) {
-              sdpText = answerSdpStr;
+
+            if (compressionMode === 'zstd_dict') {
+              try {
+                const decompressedStr = await decompressSdpZstd(ackdata);
+                try {
+                  const parsed = JSON.parse(decompressedStr);
+                  sdpText = parsed.sdp || (typeof parsed.offer === 'object' ? parsed.offer.sdp : decompressedStr);
+                } catch (_) {
+                  sdpText = decompressedStr;
+                }
+              } catch (err: any) {
+                console.error('Failed to decompress answer with zstd dict', err);
+                throw new Error('Failed to decompress device answer payload');
+              }
+            } else {
+              const answerSdpStr = await inflateRaw(base64ToUint8(ackdata));
+              try {
+                const parsed = JSON.parse(answerSdpStr);
+                sdpText = parsed.sdp || answerSdpStr;
+              } catch (e) {
+                sdpText = answerSdpStr;
+              }
             }
 
             if (forceRelay && sdpText && !sdpText.includes('typ relay')) {
