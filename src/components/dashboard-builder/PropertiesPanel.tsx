@@ -195,45 +195,43 @@ export default function PropertiesPanel() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Signaling Mode</Label>
+              <Label>Stream Mode</Label>
               <Select
-                value={draftConfig.signalingMode || 'valuestore'}
-                onValueChange={(val) => handleConfigChange({ signalingMode: val })}
+                value={draftConfig.streamMode || 'datachannel'}
+                onValueChange={(val) => handleConfigChange({ streamMode: val })}
               >
                 <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Valuestore" />
+                  <SelectValue placeholder="DataChannel (JPEG)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="valuestore">Valuestore</SelectItem>
-                  <SelectItem value="command">Command</SelectItem>
+                  <SelectItem value="datachannel">DataChannel (JPEG frames)</SelectItem>
+                  <SelectItem value="video">Video Track (H.264)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                Select mechanism for WebRTC handshake signaling.
+                DataChannel: JPEG frames streamed over WebRTC data channel (ESP32-CAM default).<br />
+                Video Track: H.264 media stream via recvonly transceiver (requires firmware support).
               </p>
             </div>
-
-            {(draftConfig.signalingMode || 'valuestore') === 'command' && (
-              <div className="space-y-2">
-                <Label>Stream Mode</Label>
-                <Select
-                  value={draftConfig.streamMode || 'datachannel'}
-                  onValueChange={(val) => handleConfigChange({ streamMode: val })}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="DataChannel (JPEG)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="datachannel">DataChannel (JPEG frames)</SelectItem>
-                    <SelectItem value="video">Video Track (H.264)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  DataChannel: JPEG frames streamed over WebRTC data channel (ESP32-CAM default).<br />
-                  Video Track: H.264 media stream via recvonly transceiver (requires firmware support).
-                </p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Payload Compression</Label>
+              <Select
+                value={draftConfig.compressionMode || 'zstd_dict'}
+                onValueChange={(val) => handleConfigChange({ compressionMode: val })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Zstandard + Dict (New Pi Peer)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="zstd_dict">Zstandard + Dict (New Pi Peer)</SelectItem>
+                  <SelectItem value="deflate_raw">Deflate Raw (Legacy)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Zstandard + Dict: zstd compression with trained dictionary (Raspberry Pi default).<br />
+                Deflate Raw: un-dictionary stream compression.
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label>TURN Port</Label>

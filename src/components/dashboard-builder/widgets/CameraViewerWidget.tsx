@@ -4,6 +4,7 @@ import { WidgetConfig } from '../../../store/useBuilderStore';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Play, Square, Radio, Loader2, AlertCircle, Volume2, VolumeX, Camera, Maximize, Minimize, Info, Aperture } from 'lucide-react';
+import { compressSdpZstd, decompressSdpZstd } from '@/utils/zstdSignaling';
 
 interface CameraViewerWidgetProps {
   config: WidgetConfig;
@@ -130,14 +131,12 @@ function optimizeSdp(sdp: string): string {
 
 
 export default function CameraViewerWidget({ config, nodeId, isEditMode }: CameraViewerWidgetProps) {
-  const signalingMode = config?.config?.signalingMode || 'valuestore';
-  // streamMode is only meaningful for command signaling.
   // 'datachannel' = JPEG frames via RTCDataChannel (ESP32-CAM style)
   // 'video'       = H.264 media track (requires firmware support)
-  const streamMode: 'datachannel' | 'video' =
-    signalingMode === 'command'
-      ? (config?.config?.streamMode || 'datachannel')
-      : 'video';
+  const streamMode: 'datachannel' | 'video' = config?.config?.streamMode || 'datachannel';
+  // 'zstd_dict' = Zstandard compression with trained dictionary (new Raspberry Pi peer default)
+  // 'deflate_raw' = Deflate stream compression (legacy default)
+  const compressionMode: 'zstd_dict' | 'deflate_raw' = config?.config?.compressionMode || 'zstd_dict';
   const [status, setStatus] = useState<'ready' | 'connecting' | 'streaming' | 'error'>('ready');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -204,7 +203,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   const apiKey = import.meta.env.VITE_ANEDYA_API_KEY;
   const ANEDYA_API_BASE = 'https://api.anedya.io/v1';
 
-  const getVsHeaders = useCallback(() => {
+  const getApiHeaders = useCallback(() => {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -212,42 +211,11 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
     };
   }, [apiKey]);
 
-  const vsSet = async (key: string, value: string) => {
-    if (!nodeId) return;
-    const resp = await fetch(`${ANEDYA_API_BASE}/valuestore/setValue`, {
-      method: 'POST',
-      headers: getVsHeaders(),
-      body: JSON.stringify({ namespace: { scope: 'node', id: nodeId }, key, value, type: 'string' }),
-    });
-    if (!resp.ok) {
-      let message = `Failed to signal device (HTTP ${resp.status})`;
-      try {
-        const json = await resp.json();
-        if (json.error) message = json.error;
-        else if (json.reasonCode) message = json.reasonCode;
-      } catch (_) { /* non-JSON body, keep generic message */ }
-      throw new Error(message);
-    }
-  };
-
-  const vsGet = async (key: string) => {
-    if (!nodeId) return null;
-    const resp = await fetch(`${ANEDYA_API_BASE}/valuestore/getValue`, {
-      method: 'POST',
-      headers: getVsHeaders(),
-      body: JSON.stringify({ namespace: { scope: 'node', id: nodeId }, key }),
-    });
-    if (!resp.ok) return null;
-    const json = await resp.json();
-    if (!json.value) return null;
-    return json.value;
-  };
-
   const sendCmdOffer = async (b64: string) => {
     if (!nodeId) return null;
     const resp = await fetch(`${ANEDYA_API_BASE}/commands/send`, {
       method: 'POST',
-      headers: getVsHeaders(),
+      headers: getApiHeaders(),
       body: JSON.stringify({
         nodeId: nodeId,
         command: 'webrtc_offer',
@@ -272,18 +240,32 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
   const getCommandStatus = async (commandId: string) => {
     const resp = await fetch(`${ANEDYA_API_BASE}/commands/getDetails`, {
       method: 'POST',
-      headers: getVsHeaders(),
+      headers: getApiHeaders(),
       body: JSON.stringify({ commandId }),
     });
     if (!resp.ok) return null;
     return await resp.json();
   };
 
+  const fetchNodeHealth = async (nodeIdStr: string) => {
+    const resp = await fetch(`${ANEDYA_API_BASE}/health/status`, {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify({
+        nodes: [nodeIdStr],
+        lastContactThreshold: 90,
+      }),
+    });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    if (json.success === false) return null;
+    return json.data?.[nodeIdStr] || null;
+  };
 
   const fetchTurnCredentials = async () => {
     const resp = await fetch(`${ANEDYA_API_BASE}/relay/create`, {
       method: 'POST',
-      headers: getVsHeaders(),
+      headers: getApiHeaders(),
       body: JSON.stringify({ relayType: 'turn' }),
     });
     if (!resp.ok) throw new Error(`TURN fetch failed: ${resp.status}`);
@@ -345,6 +327,22 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
     setStatus('connecting');
     setErrorMessage('');
+
+    setConnectionProgress('CHECKING DEVICE STATUS...');
+    try {
+      const healthInfo = await fetchNodeHealth(nodeId);
+      if (healthInfo && !healthInfo.online) {
+        const lastTime = healthInfo.lastHeartbeat
+          ? new Date(healthInfo.lastHeartbeat * 1000).toLocaleString()
+          : 'never';
+        setErrorMessage(`Device is offline (last heartbeat: ${lastTime})`);
+        setStatus('error');
+        return;
+      }
+    } catch (_) {
+      // Continue if health API fails
+    }
+
     setConnectionProgress('FETCHING RELAY CREDENTIALS...');
 
     try {
@@ -372,11 +370,10 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       pcRef.current = pc;
 
       // ── Data channel / media-track setup ──────────────────────────────────
-      // command + datachannel → JPEG frames via unordered RTCDataChannel
-      // command + video       → H.264 media track via recvonly transceiver
-      // valuestore (always)   → H.264 media track via recvonly transceiver
+      // 'datachannel' → JPEG frames via unordered RTCDataChannel (ESP32-CAM style)
+      // 'video'       → H.264 media track via recvonly transceiver
 
-      if (signalingMode === 'command' && streamMode === 'datachannel') {
+      if (streamMode === 'datachannel') {
         // ── JPEG-over-DataChannel mode (ESP32-CAM) ──
         const dc = pc.createDataChannel('jpeg-test', { ordered: false, maxRetransmits: 0 });
         dc.binaryType = 'arraybuffer';
@@ -409,59 +406,9 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
           }
         };
 
-      } else if (signalingMode === 'command' && streamMode === 'video') {
-        // ── Video-track mode for Command signaling ──
-        // No data channel needed; media arrives as a proper MediaStream track.
-        const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
-
-        if (RTCRtpReceiver.getCapabilities) {
-          const caps = RTCRtpReceiver.getCapabilities('video');
-          if (caps) {
-            const h264 = caps.codecs.filter(c => c.mimeType === 'video/H264');
-            const rest = caps.codecs.filter(c => c.mimeType !== 'video/H264');
-            if (h264.length) {
-              try { videoTransceiver.setCodecPreferences([...h264, ...rest]); } catch (_) { /* ignore */ }
-            }
-          }
-        }
-
-        pc.ontrack = (e) => {
-          if (e.streams && e.streams[0] && videoRef.current) {
-            videoRef.current.srcObject = e.streams[0];
-            setStatus('streaming');
-          }
-        };
-
       } else {
-        // ── Valuestore signaling (legacy) — DVR / control channel + media tracks ──
-        const dc = pc.createDataChannel('control', { ordered: true });
-        dcRef.current = dc;
-
-        dc.onopen = () => {
-          sendCmd({ cmd: 'timeline' });
-          timelineTimerRef.current = setInterval(() => sendCmd({ cmd: 'timeline' }), 2000);
-        };
-
-        dc.onmessage = (e) => {
-          try {
-            const msg = JSON.parse(e.data);
-            if (msg.type === 'timeline') {
-              const newDuration = Number(msg.duration || 0);
-              const newPosition = Number(msg.playback_offset ?? newDuration);
-              setDuration(newDuration);
-              if (!draggingSlider) {
-                setPosition(Math.min(newPosition, newDuration));
-              }
-              setIsLive(msg.mode === 'live' || newDuration <= 0);
-            } else if (msg.type === 'error') {
-              console.error('Device Error:', msg.message);
-            }
-          } catch (err) {
-            console.error('Failed to parse dc message', err);
-          }
-        };
-
+        // ── Video-track mode ──
+        // No data channel needed; media arrives as a proper MediaStream track.
         const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
         pc.addTransceiver('audio', { direction: 'recvonly' });
 
@@ -532,146 +479,120 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
         return;
       }
 
-      if (signalingMode === 'command') {
+      let b64 = '';
+      if (compressionMode === 'zstd_dict') {
+        const offerPayload = JSON.stringify({
+          offer: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
+          turn: relayData,
+        });
+        b64 = await compressSdpZstd(offerPayload);
+      } else {
         const rawOfferSdp = pc.localDescription?.sdp || '';
         const cleanedOfferSdp = optimizeSdp(rawOfferSdp);
         const offerSdp = cleanedOfferSdp.replaceAll("a=setup:actpass", "a=setup:passive");
-        console.log(`Original SDP offer length: ${rawOfferSdp.length}, Cleaned SDP offer length: ${cleanedOfferSdp.length}`);
         const offerPayload = JSON.stringify({
           type: "offer",
           sdp: offerSdp,
-          turn: relayData ? { username: relayData.username, credential: relayData.password } : null,
+          turn: relayData,
         });
-
         const compressed = await deflateRaw(offerPayload);
-        const b64 = uint8ToBase64(compressed);
-        if (b64.length > 950) {
-          throw new Error(`Compressed offer too large for command payload: ${b64.length} bytes (limit ~1000)`);
-        }
+        b64 = uint8ToBase64(compressed);
+      }
 
-        setConnectionProgress('SENDING OFFER TO DEVICE...');
-        const commandId = await sendCmdOffer(b64);
-        if (!commandId) {
-          throw new Error('Failed to retrieve a valid command ID.');
-        }
+      if (b64.length > 980) {
+        throw new Error(`Compressed offer payload too large: ${b64.length} bytes (limit ~1000)`);
+      }
 
-        setConnectionProgress('WAITING FOR DEVICE ANSWER...');
-        let attempts = 0;
-        let answerApplied = false;
-        const MAX_ATTEMPTS = 45; // 90 seconds like the HTML code
+      setConnectionProgress('SENDING OFFER TO DEVICE...');
+      const commandId = await sendCmdOffer(b64);
+      if (!commandId) {
+        throw new Error('Failed to retrieve a valid command ID.');
+      }
 
-        pollTimerRef.current = setInterval(async () => {
-          attempts++;
-          if (attempts > MAX_ATTEMPTS) {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            if (!answerApplied) {
-              setErrorMessage('Timed out waiting for device response.');
-              setStatus('error');
-              stopStream(true);
-            }
-            return;
+      setConnectionProgress('WAITING FOR DEVICE ANSWER...');
+      let attempts = 0;
+      let answerApplied = false;
+      const MAX_ATTEMPTS = 45; // 90 seconds like the HTML code
+
+      pollTimerRef.current = setInterval(async () => {
+        attempts++;
+        if (attempts > MAX_ATTEMPTS) {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          if (!answerApplied) {
+            setErrorMessage('Timed out waiting for device response.');
+            setStatus('error');
+            stopStream(true);
           }
+          return;
+        }
 
-          try {
-            const cmd = await getCommandStatus(commandId);
-            if (!cmd) return;
+        try {
+          const cmd = await getCommandStatus(commandId);
+          if (!cmd) return;
 
-            const processAnswer = async (ackdata: string) => {
-              answerApplied = true;
+          const processAnswer = async (ackdata: string) => {
+            answerApplied = true;
+            let sdpText = '';
+
+            if (compressionMode === 'zstd_dict') {
+              try {
+                const decompressedStr = await decompressSdpZstd(ackdata);
+                try {
+                  const parsed = JSON.parse(decompressedStr);
+                  sdpText = parsed.sdp || (typeof parsed.offer === 'object' ? parsed.offer.sdp : decompressedStr);
+                } catch (_) {
+                  sdpText = decompressedStr;
+                }
+              } catch (err: any) {
+                console.error('Failed to decompress answer with zstd dict', err);
+                throw new Error('Failed to decompress device answer payload');
+              }
+            } else {
               const answerSdpStr = await inflateRaw(base64ToUint8(ackdata));
-              let sdpText = '';
               try {
                 const parsed = JSON.parse(answerSdpStr);
                 sdpText = parsed.sdp || answerSdpStr;
               } catch (e) {
                 sdpText = answerSdpStr;
               }
+            }
 
-              if (forceRelay && sdpText && !sdpText.includes('typ relay')) {
-                setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
-                setStatus('error');
-                stopStream(true);
-                return false;
-              }
-
-              setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
-              await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdpText }));
-              return true;
-            };
-
-            if (cmd.status === 'failure') {
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-              const reason = cmd.ackdata || cmd.error || 'Unknown device failure';
-              setErrorMessage(`Device reported failure: ${reason}`);
+            if (forceRelay && sdpText && !sdpText.includes('typ relay')) {
+              setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
               setStatus('error');
               stopStream(true);
-              return;
+              return false;
             }
 
-            if (cmd.status === 'success') {
-              if (!answerApplied && cmd.ackdata) {
-                await processAnswer(cmd.ackdata);
-              }
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-              return;
-            }
+            setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
+            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdpText }));
+            return true;
+          };
 
-            if (!answerApplied && cmd.ackdata) {
-              await processAnswer(cmd.ackdata);
-            }
-          } catch (err) {
-            // Keep polling
-          }
-        }, 2000);
-
-      } else {
-        // Valuestore signaling
-        const sessionId = Math.random().toString(36).slice(2, 10);
-        const offerKey = `offer_${sessionId}`;
-        const answerKey = `answer_${sessionId}`;
-
-        const payload = JSON.stringify({
-          offer: { sdp: pc.localDescription?.sdp, type: pc.localDescription?.type },
-          turn: relayData
-        });
-
-        setConnectionProgress('SENDING OFFER TO DEVICE...');
-        await vsSet(offerKey, payload);
-
-        setConnectionProgress('WAITING FOR DEVICE ANSWER...');
-        let attempts = 0;
-        const MAX_ATTEMPTS = 30;
-        pollTimerRef.current = setInterval(async () => {
-          attempts++;
-          if (attempts > MAX_ATTEMPTS) {
+          if (cmd.status === 'failure') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            setErrorMessage('Device is not responding, kindly check your device.');
+            const reason = cmd.ackdata || cmd.error || 'Unknown device failure';
+            setErrorMessage(`Device reported failure: ${reason}`);
             setStatus('error');
             stopStream(true);
             return;
           }
 
-          try {
-            const value = await vsGet(answerKey);
-            if (value) {
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-              const answerSdp = JSON.parse(value);
-
-              if (forceRelay && answerSdp.sdp && !answerSdp.sdp.includes('typ relay')) {
-                setErrorMessage('Failed to create relay candidate. Please check your quota limits.');
-                setStatus('error');
-                stopStream(true);
-                return;
-              }
-
-              setConnectionProgress('ESTABLISHING WEBRTC CONNECTION...');
-              await pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
+          if (cmd.status === 'success') {
+            if (!answerApplied && cmd.ackdata) {
+              await processAnswer(cmd.ackdata);
             }
-          } catch (err) {
-            // Keep polling
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            return;
           }
-        }, 2000);
-      }
+
+          if (!answerApplied && cmd.ackdata) {
+            await processAnswer(cmd.ackdata);
+          }
+        } catch (err) {
+          // Keep polling
+        }
+      }, 2000);
 
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to start stream');
@@ -701,7 +622,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
   useEffect(() => {
     // JPEG data-channel mode reports stats via recordJpegStats(); skip WebRTC inbound-rtp polling.
-    if (signalingMode === 'command' && streamMode === 'datachannel') return;
+    if (streamMode === 'datachannel') return;
 
     if (showStats && status === 'streaming' && pcRef.current) {
       const interval = setInterval(async () => {
@@ -740,10 +661,10 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [showStats, status, networkStats, signalingMode, streamMode]);
+  }, [showStats, status, networkStats, streamMode]);
 
   const takeSnapshot = () => {
-    if (signalingMode === 'command' && streamMode === 'datachannel') {
+    if (streamMode === 'datachannel') {
       // Snapshot from latest JPEG blob URL
       if (imageUrl) {
         const a = document.createElement('a');
@@ -754,7 +675,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
       return;
     }
 
-    // Snapshot from <video> element (video track mode or valuestore)
+    // Snapshot from <video> element (video track mode)
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth || 1280;
@@ -829,7 +750,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
 
         {/* Video Area */}
         <div className="flex-1 relative flex items-center justify-center min-h-0">
-          {signalingMode === 'command' && streamMode === 'datachannel' ? (
+          {streamMode === 'datachannel' ? (
             // JPEG frames delivered via WebRTC DataChannel — rendered into <img>.
             // alt="" prevents the browser rendering alt-text (fixes the upside-down text glitch).
             <img
@@ -840,7 +761,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
               style={{ transform: 'scaleY(-1)' }}
             />
           ) : (
-            // Video track (command+video mode or valuestore mode) — rendered into <video>
+            // Video track (H.264) — rendered into <video>
             <video
               ref={videoRef}
               autoPlay
@@ -855,7 +776,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
               <div className="text-white/50 mb-1 font-sans text-[9px] uppercase tracking-wider">Network Stats</div>
               <div className="flex justify-between gap-4"><span>Bitrate:</span> <span>{networkStats.bitrate} kbps</span></div>
               <div className="flex justify-between gap-4"><span>Framerate:</span> <span>{networkStats.fps} fps</span></div>
-              {!(signalingMode === 'command' && streamMode === 'datachannel') && (
+              {streamMode !== 'datachannel' && (
                 <div className="flex justify-between gap-4"><span>Packet Loss:</span> <span>{networkStats.packetLoss}%</span></div>
               )}
               {networkStats.resolution !== '0x0' && networkStats.resolution !== '' && (
@@ -932,7 +853,7 @@ export default function CameraViewerWidget({ config, nodeId, isEditMode }: Camer
                 )}
 
                 {/* Mute only applies to video track modes, not JPEG data channel, and when enabled in config */}
-                {!(signalingMode === 'command' && streamMode === 'datachannel') && config?.config?.showMuteBtn !== false && (
+                {streamMode !== 'datachannel' && config?.config?.showMuteBtn !== false && (
                   <Button
                     size="icon"
                     variant="ghost"
