@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+import { formatSupabaseError } from "@/utils/supabaseError";
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,11 +76,11 @@ const Login: React.FC = () => {
       });
 
       if (error) {
-        setError(error.message);
+        setError(formatSupabaseError(error));
       }
       // On success, the AuthContext listener will update state and the useEffect will navigate
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
+      setError(formatSupabaseError(err));
     } finally {
       setIsLoading(false);
     }
@@ -98,13 +100,13 @@ const Login: React.FC = () => {
       });
 
       if (error) {
-        setError(error.message);
+        setError(formatSupabaseError(error));
       } else {
         setResetEmailSent(true);
         toast.success("Password reset email sent!");
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
+      setError(formatSupabaseError(err));
     } finally {
       setIsLoading(false);
     }
@@ -125,13 +127,13 @@ const Login: React.FC = () => {
       });
 
       if (error) {
-        setError(error.message);
+        setError(formatSupabaseError(error));
       } else {
         toast.success("Password updated successfully!");
         navigate("/home");
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
+      setError(formatSupabaseError(err));
     } finally {
       setIsLoading(false);
     }

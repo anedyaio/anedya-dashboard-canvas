@@ -223,8 +223,8 @@ export default function PropertiesPanel() {
                   <SelectValue placeholder="Zstandard + Dict (New Pi Peer)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="zstd_dict">Zstandard + Dict (New Pi Peer)</SelectItem>
-                  <SelectItem value="deflate_raw">Deflate Raw (Legacy)</SelectItem>
+                  <SelectItem value="zstd_dict">Zstandard + Dict </SelectItem>
+                  <SelectItem value="deflate_raw">Deflate Raw </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { formatSupabaseError } from "@/utils/supabaseError";
 
 const Setup: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -75,10 +76,10 @@ const Setup: React.FC = () => {
         setNeedsSetup(false);
         setTimeout(() => navigate("/login"), 1500);
       } else if (data && data.error) {
-        toast.error(data.error);
+        toast.error(formatSupabaseError(data.error));
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to create admin account");
+      toast.error(formatSupabaseError(err));
     } finally {
       setIsLoading(false);
     }
